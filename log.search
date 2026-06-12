@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PAN-OS URLフィルタログ抽出 コマンド生成</title>
+<style>
+  :root{
+    --bg:#10151c;
+    --panel:#1a212b;
+    --panel2:#212a36;
+    --line:#2e3947;
+    --text:#dde4ec;
+    --muted:#8b97a6;
+    --accent:#e8a33d;       /* amber */
+    --accent-dim:#8a6526;
+    --ok:#5fb878;
+    --err:#e06c6c;
+    --mono:Consolas,"Courier New",monospace;
+    --sans:"Segoe UI","Yu Gothic UI",Meiryo,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;padding:24px 16px 80px}
+  .wrap{max-width:880px;margin:0 auto}
+
+  header{margin-bottom:28px;border-bottom:1px solid var(--line);padding-bottom:16px}
+  header h1{font-size:20px;font-weight:600;letter-spacing:.02em}
+  header h1 .amber{color:var(--accent)}
+  header p{color:var(--muted);font-size:13px;margin-top:4px}
+
+  fieldset{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:16px;margin-bottom:16px}
+  legend{padding:0 8px;font-size:12px;color:var(--accent);letter-spacing:.12em;font-weight:600}
+
+  .row{display:flex;flex-wrap:wrap;gap:12px}
+  .field{flex:1;min-width:200px}
+  label.lbl{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+  input[type=text],input[type=password],textarea{
+    width:100%;background:var(--bg);border:1px solid var(--line);border-radius:6px;
+    color:var(--text);padding:8px 10px;font-size:14px;font-family:var(--mono);
+  }
+  input:focus,textarea:focus{outline:2px solid var(--accent-dim);outline-offset:1px;border-color:var(--accent-dim)}
+  textarea{resize:vertical;min-height:140px;line-height:1.5}
+
+  .seg{display:flex;flex-wrap:wrap;gap:8px}
+  .seg input[type=radio]{position:absolute;opacity:0;width:0;height:0}
+  .seg label{
+    border:1px solid var(--line);border-radius:6px;background:var(--bg);
+    padding:7px 16px;font-size:14px;cursor:pointer;user-select:none;color:var(--muted)
+  }
+  .seg input[type=radio]:checked + label{border-color:var(--accent);color:var(--accent);background:rgba(232,163,61,.08)}
+  .seg input[type=radio]:focus-visible + label{outline:2px solid var(--accent-dim);outline-offset:2px}
+
+  .hint{font-size:12px;color:var(--muted);margin-top:6px}
+  .hint code{font-family:var(--mono);color:var(--text);background:var(--panel2);padding:0 4px;border-radius:3px}
+
+  .checkline{display:flex;align-items:flex-start;gap:8px;margin-top:10px;font-size:13px;color:var(--muted)}
+  .checkline input{margin-top:4px;accent-color:var(--accent)}
+
+  .actions{display:flex;gap:12px;align-items:center;margin:20px 0}
+  button.primary{
+    background:var(--accent);color:#1a1206;border:none;border-radius:6px;
+    padding:10px 28px;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--sans)
+  }
+  button.primary:hover{filter:brightness(1.08)}
+  button.ghost{
+    background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:6px;
+    padding:9px 16px;font-size:13px;cursor:pointer
+  }
+  button.ghost:hover{color:var(--text);border-color:var(--muted)}
+  button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  .errors{border:1px solid var(--err);border-radius:8px;padding:12px 16px;margin-bottom:16px;background:rgba(224,108,108,.06);font-size:13px;color:var(--err);display:none}
+  .errors ul{margin-left:18px}
+
+  /* ===== runbook output ===== */
+  #out{display:none}
+  .runbook-title{font-size:13px;color:var(--muted);letter-spacing:.12em;margin:32px 0 12px;border-top:1px solid var(--line);padding-top:20px}
+  .step{position:relative;padding-left:46px;margin-bottom:22px}
+  .step::before{
+    content:attr(data-no);position:absolute;left:0;top:0;width:30px;height:30px;
+    border:1px solid var(--accent);border-radius:50%;color:var(--accent);
+    display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:14px
+  }
+  .step:not(:last-child)::after{
+    content:"";position:absolute;left:15px;top:34px;bottom:-22px;width:1px;background:var(--line)
+  }
+  .step h3{font-size:14px;font-weight:600;margin-bottom:2px}
+  .step .where{font-size:12px;color:var(--accent);margin-bottom:8px}
+  .cmd{
+    display:flex;align-items:stretch;gap:8px;margin-bottom:8px
+  }
+  .cmd pre{
+    flex:1;background:#0a0e13;border:1px solid var(--line);border-radius:6px;
+    padding:9px 12px;font-family:var(--mono);font-size:13px;overflow-x:auto;white-space:pre;
+    color:#cfe3c8
+  }
+  .cmd button{
+    background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--muted);
+    padding:0 14px;font-size:12px;cursor:pointer;white-space:nowrap
+  }
+  .cmd button:hover{color:var(--text);border-color:var(--muted)}
+  .cmd button.copied{color:var(--ok);border-color:var(--ok)}
+  .pwline{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin-bottom:8px}
+  .pwline .mask{font-family:var(--mono);color:var(--text)}
+  .note{font-size:12px;color:var(--muted)}
+  .note.warn{color:var(--accent)}
+  .copyall{margin-top:4px}
+
+  footer{margin-top:48px;font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:14px}
+  footer code{font-family:var(--mono);background:var(--panel2);padding:0 4px;border-radius:3px;color:var(--text)}
+
+  @media (prefers-reduced-motion: no-preference){
+    .step{animation:fadein .25s ease both}
+    @keyframes fadein{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>PAN-OS URLフィルタログ抽出 <span class="amber">コマンド生成</span></h1>
+  <p>Windows端末 → 踏み台 → センサ(PAN-OS 11.2.5) の接続手順とログ抽出コマンドを順に生成します。入力値はこのページ内でのみ使用され、保存・送信されません。</p>
+</header>
+
+<fieldset>
+  <legend>1. 接続先</legend>
+  <label class="lbl">環境</label>
+  <div class="seg" id="envSeg" role="radiogroup" aria-label="環境"></div>
+  <div style="height:14px"></div>
+  <label class="lbl">センサ</label>
+  <div class="seg" id="sensorSeg" role="radiogroup" aria-label="センサ"></div>
+</fieldset>
+
+<fieldset>
+  <legend>2. 認証情報</legend>
+  <div class="row">
+    <div class="field">
+      <label class="lbl" for="bUser">踏み台 ユーザ名</label>
+      <input type="text" id="bUser" value="bastion_user" autocomplete="off">
+    </div>
+    <div class="field">
+      <label class="lbl" for="bPass">踏み台 パスワード</label>
+      <input type="password" id="bPass" autocomplete="off">
+    </div>
+  </div>
+  <div style="height:12px"></div>
+  <div class="row">
+    <div class="field">
+      <label class="lbl" for="pUser">センサ(PAN-OS) ユーザ名</label>
+      <input type="text" id="pUser" value="admin" autocomplete="off">
+    </div>
+    <div class="field">
+      <label class="lbl" for="pPass">センサ(PAN-OS) パスワード</label>
+      <input type="password" id="pPass" autocomplete="off">
+    </div>
+  </div>
+  <div class="checkline">
+    <input type="checkbox" id="useSshpass">
+    <label for="useSshpass">踏み台→センサのSSHに <code style="font-family:var(--mono)">sshpass</code> を使い、パスワード入力を省略する（踏み台に sshpass が導入済みの場合のみ。コマンド文字列にパスワードが含まれる点に注意）</label>
+  </div>
+</fieldset>
+
+<fieldset>
+  <legend>3. 抽出対象ログ</legend>
+  <label class="lbl" for="pairs">sessionid と URL を1行に1組ずつ入力（区切りはカンマ / タブ / 空白のいずれでも可。Excelの2列をそのまま貼り付けできます）</label>
+  <textarea id="pairs" spellcheck="false" placeholder="例:
+12345, example.com/path
+67890	test.example.co.jp
+24680 another-site.com/download"></textarea>
+  <div class="hint">行数分の <code>show log url</code> コマンドが生成されます。空行は無視されます。</div>
+</fieldset>
+
+<div class="actions">
+  <button class="primary" id="genBtn">コマンドを生成</button>
+  <button class="ghost" id="clearBtn">入力をクリア</button>
+</div>
+
+<div class="errors" id="errBox"></div>
+
+<div id="out">
+  <div class="runbook-title">実行手順（上から順に実行）</div>
+  <div id="steps"></div>
+</div>
+
+<footer>
+  接続先IPは仮の値（プレースホルダ）です。このHTMLファイルをテキストエディタで開き、ファイル末尾付近の <code>CONFIG</code> 内の
+  <code>FUMIDAI_*_IP</code> / <code>SENSOR_*_IP</code> を実際のIPアドレスに一括置換してください。
+</footer>
+
+</div>
+
+<script>
+/* =========================================================================
+   接続先定義（★IPアドレスはプレースホルダ。実環境の値に置換してください★）
+   置換対象:
+     FUMIDAI_SAITAI_IP   災対環境 踏み台
+     FUMIDAI_KENSHO_IP   検証環境 踏み台
+     FUMIDAI_HONBAN_IP   本番環境 踏み台
+     SENSOR_SAITAI_1_IP / SENSOR_SAITAI_2_IP          災対センサ 1〜2号機
+     SENSOR_KENSHO_1_IP / SENSOR_KENSHO_2_IP          検証センサ 1〜2号機
+     SENSOR_HONBAN_1_IP 〜 SENSOR_HONBAN_4_IP         本番センサ 1〜4号機
+   ========================================================================= */
+const CONFIG = {
+  saitai: {
+    label: "災対環境",
+    bastion: "FUMIDAI_SAITAI_IP",
+    sensors: [
+      { label: "1号機", host: "SENSOR_SAITAI_1_IP" },
+      { label: "2号機", host: "SENSOR_SAITAI_2_IP" }
+    ]
+  },
+  kensho: {
+    label: "検証環境",
+    bastion: "FUMIDAI_KENSHO_IP",
+    sensors: [
+      { label: "1号機", host: "SENSOR_KENSHO_1_IP" },
+      { label: "2号機", host: "SENSOR_KENSHO_2_IP" }
+    ]
+  },
+  honban: {
+    label: "本番環境",
+    bastion: "FUMIDAI_HONBAN_IP",
+    sensors: [
+      { label: "1号機", host: "SENSOR_HONBAN_1_IP" },
+      { label: "2号機", host: "SENSOR_HONBAN_2_IP" },
+      { label: "3号機", host: "SENSOR_HONBAN_3_IP" },
+      { label: "4号機", host: "SENSOR_HONBAN_4_IP" }
+    ]
+  }
+};
+/* ====================== 定義ここまで ====================== */
+
+const $ = id => document.getElementById(id);
+let currentEnv = "honban";
+
+/* --- 環境・センサのラジオ生成 --- */
+function buildEnvSeg(){
+  const seg = $("envSeg");
+  seg.innerHTML = "";
+  Object.entries(CONFIG).forEach(([key, env], i) => {
+    const input = document.createElement("input");
+    input.type = "radio"; input.name = "env"; input.id = "env_" + key; input.value = key;
+    if (key === currentEnv) input.checked = true;
+    input.addEventListener("change", () => { currentEnv = key; buildSensorSeg(); });
+    const label = document.createElement("label");
+    label.htmlFor = input.id; label.textContent = env.label;
+    seg.appendChild(input); seg.appendChild(label);
+  });
+}
+function buildSensorSeg(){
+  const seg = $("sensorSeg");
+  seg.innerHTML = "";
+  CONFIG[currentEnv].sensors.forEach((s, i) => {
+    const input = document.createElement("input");
+    input.type = "radio"; input.name = "sensor"; input.id = "sensor_" + i; input.value = i;
+    if (i === 0) input.checked = true;
+    const label = document.createElement("label");
+    label.htmlFor = input.id; label.textContent = s.label;
+    seg.appendChild(input); seg.appendChild(label);
+  });
+}
+buildEnvSeg();
+buildSensorSeg();
+
+/* --- 入力パース --- */
+function parsePairs(text){
+  const entries = [], errors = [];
+  text.split(/\r?\n/).forEach((raw, idx) => {
+    const line = raw.trim();
+    if (!line) return;
+    const m = line.match(/^([^\s,\t]+)[\s,\t]+(.+)$/);
+    if (!m){
+      errors.push((idx+1) + "行目: sessionid と URL を区切って入力してください → 「" + line + "」");
+      return;
+    }
+    const sid = m[1].trim();
+    let url = m[2].trim().replace(/^['"]|['"]$/g, "");
+    if (!/^\d+$/.test(sid)){
+      errors.push((idx+1) + "行目: sessionid「" + sid + "」が数値ではありません");
+      return;
+    }
+    if (url.includes("'")){
+      errors.push((idx+1) + "行目: URLにシングルクォートが含まれています。除去してください → 「" + url + "」");
+      return;
+    }
+    if (url.includes('"')){
+      url = url.replace(/"/g, "");
+    }
+    entries.push({ sid, url });
+  });
+  return { entries, errors };
+}
+
+/* --- シェル用シングルクォートエスケープ --- */
+function shq(s){ return "'" + String(s).replace(/'/g, "'\\''") + "'"; }
+
+/* --- コマンド生成 --- */
+function generate(){
+  const errBox = $("errBox");
+  const out = $("out");
+  const stepsEl = $("steps");
+  errBox.style.display = "none";
+  out.style.display = "none";
+  stepsEl.innerHTML = "";
+
+  const env = CONFIG[currentEnv];
+  const sensorIdx = parseInt(document.querySelector('input[name="sensor"]:checked').value, 10);
+  const sensor = env.sensors[sensorIdx];
+  const bUser = $("bUser").value.trim();
+  const bPass = $("bPass").value;
+  const pUser = $("pUser").value.trim();
+  const pPass = $("pPass").value;
+  const useSshpass = $("useSshpass").checked;
+
+  const { entries, errors } = parsePairs($("pairs").value);
+  if (!bUser) errors.unshift("踏み台ユーザ名を入力してください");
+  if (!pUser) errors.unshift("センサ(PAN-OS)ユーザ名を入力してください");
+  if (useSshpass && !pPass) errors.unshift("sshpass使用時はセンサのパスワードを入力してください");
+  if (entries.length === 0) errors.push("抽出対象ログ（sessionid / URL）が1件もありません");
+
+  if (errors.length){
+    errBox.innerHTML = "<ul>" + errors.map(e => "<li>" + escHtml(e) + "</li>").join("") + "</ul>";
+    errBox.style.display = "block";
+    return;
+  }
+
+  /* STEP1: Windows → 踏み台 */
+  addStep(1, "踏み台へSSH接続", "Windows端末のターミナルで実行",
+    ["ssh " + bUser + "@" + env.bastion],
+    bPass ? { label: "踏み台パスワード（プロンプトで貼り付け）", value: bPass } : null,
+    bPass ? null : "パスワードはプロンプトで手入力してください（入力欄が空のため）。"
+  );
+
+  /* STEP2: 踏み台 → センサ */
+  const sshCmd = useSshpass
+    ? "sshpass -p " + shq(pPass) + " ssh " + pUser + "@" + sensor.host
+    : "ssh " + pUser + "@" + sensor.host;
+  addStep(2, env.label + " " + sensor.label + " へSSH接続", "踏み台サーバ上で実行",
+    [sshCmd],
+    (!useSshpass && pPass) ? { label: "センサパスワード（プロンプトで貼り付け）", value: pPass } : null,
+    useSshpass ? "コマンド内にパスワードが平文で含まれます。実行後は history -d 等での削除を検討してください。" : null
+  );
+
+  /* STEP3: ページャ無効化 */
+  addStep(3, "ページャ無効化", "PAN-OS CLI（センサ）で実行",
+    ["set cli pager off"], null,
+    "出力が画面単位で停止しないようにします。ログ件数が多い場合に推奨。");
+
+  /* STEP4: ログ抽出 */
+  const queryCmds = entries.map(e =>
+    'show log url query equal "( sessionid eq ' + e.sid + " ) and ( url contains '" + e.url + "' )\""
+  );
+  addStep(4, "URLフィルタログ抽出（" + entries.length + "件）", "PAN-OS CLI（センサ）で実行 — 1行ずつ、またはまとめて貼り付け",
+    queryCmds, null, null, true);
+
+  out.style.display = "block";
+  out.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+/* --- ステップDOM生成 --- */
+function addStep(no, title, where, cmds, pw, note, withCopyAll){
+  const div = document.createElement("div");
+  div.className = "step";
+  div.setAttribute("data-no", no);
+
+  let html = "<h3>" + escHtml(title) + "</h3><div class='where'>" + escHtml(where) + "</div>";
+  div.innerHTML = html;
+
+  cmds.forEach(c => {
+    const cmdDiv = document.createElement("div");
+    cmdDiv.className = "cmd";
+    const pre = document.createElement("pre");
+    pre.textContent = c;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = "コピー";
+    btn.addEventListener("click", () => copyText(c, btn));
+    cmdDiv.appendChild(pre); cmdDiv.appendChild(btn);
+    div.appendChild(cmdDiv);
+  });
+
+  if (withCopyAll && cmds.length > 1){
+    const allBtn = document.createElement("button");
+    allBtn.type = "button";
+    allBtn.className = "ghost copyall";
+    allBtn.textContent = "全" + cmds.length + "コマンドをまとめてコピー";
+    allBtn.addEventListener("click", () => copyText(cmds.join("\n"), allBtn));
+    div.appendChild(allBtn);
+  }
+
+  if (pw){
+    const p = document.createElement("div");
+    p.className = "pwline";
+    const span = document.createElement("span");
+    span.textContent = pw.label + ": ";
+    const mask = document.createElement("span");
+    mask.className = "mask";
+    mask.textContent = "•".repeat(Math.min(pw.value.length, 12));
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "ghost";
+    btn.style.padding = "3px 10px";
+    btn.textContent = "パスワードをコピー";
+    btn.addEventListener("click", () => copyText(pw.value, btn));
+    p.appendChild(span); p.appendChild(mask); p.appendChild(btn);
+    div.appendChild(p);
+  }
+
+  if (note){
+    const n = document.createElement("div");
+    n.className = "note" + (note.includes("平文") ? " warn" : "");
+    n.textContent = "※ " + note;
+    div.appendChild(n);
+  }
+
+  $("steps").appendChild(div);
+}
+
+/* --- クリップボード（file:// でも動くようフォールバック付き） --- */
+function copyText(text, btn){
+  const done = () => {
+    const orig = btn.textContent;
+    btn.classList.add("copied");
+    btn.textContent = "コピーしました";
+    setTimeout(() => { btn.classList.remove("copied"); btn.textContent = orig; }, 1500);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+  } else {
+    fallbackCopy(text, done);
+  }
+}
+function fallbackCopy(text, done){
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed"; ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand("copy"); done(); } catch(e){ alert("コピーに失敗しました。手動で選択してください。"); }
+  document.body.removeChild(ta);
+}
+
+function escHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+}
+
+$("genBtn").addEventListener("click", generate);
+$("clearBtn").addEventListener("click", () => {
+  $("bPass").value = ""; $("pPass").value = ""; $("pairs").value = "";
+  $("errBox").style.display = "none"; $("out").style.display = "none";
+});
+</script>
+</body>
+</html>
