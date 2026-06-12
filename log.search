@@ -169,6 +169,10 @@
 67890	test.example.co.jp
 24680 another-site.com/download"></textarea>
   <div class="hint">行数分の <code>show log url</code> コマンドが生成されます。空行は無視されます。</div>
+  <div class="checkline">
+    <input type="checkbox" id="csvOut">
+    <label for="csvOut">CSV出力（全項目表示）— 各コマンド末尾に <code style="font-family:var(--mono)">csv-output equal yes</code> を付加します。XFFなど通常表示に出ないフィールドを確認する場合にONにしてください（ファイルは生成されず、画面表示の形式が変わるだけです）</label>
+  </div>
 </fieldset>
 
 <div class="actions">
@@ -348,11 +352,15 @@ function generate(){
     "出力が画面単位で停止しないようにします。ログ件数が多い場合に推奨。");
 
   /* STEP4: ログ抽出 */
+  const csvSuffix = $("csvOut").checked ? " csv-output equal yes" : "";
   const queryCmds = entries.map(e =>
-    'show log url query equal "( sessionid eq ' + e.sid + " ) and ( url contains '" + e.url + "' )\""
+    'show log url query equal "( sessionid eq ' + e.sid + " ) and ( url contains '" + e.url + "' )\"" + csvSuffix
   );
-  addStep(4, "URLフィルタログ抽出（" + entries.length + "件）", "PAN-OS CLI（センサ）で実行 — 1行ずつ、またはまとめて貼り付け",
-    queryCmds, null, null, true);
+  const stepTitle = "URLフィルタログ抽出（" + entries.length + "件" + (csvSuffix ? "・CSV全項目表示" : "") + "）";
+  addStep(4, stepTitle, "PAN-OS CLI（センサ）で実行 — 1行ずつ、またはまとめて貼り付け",
+    queryCmds, null,
+    csvSuffix ? "CSV形式は1件が長い1行で出力されます。事前のページャ無効化と、ターミナルのログ保存機能の併用を推奨します。" : null,
+    true);
 
   out.style.display = "block";
   out.scrollIntoView({ behavior: "smooth", block: "nearest" });
