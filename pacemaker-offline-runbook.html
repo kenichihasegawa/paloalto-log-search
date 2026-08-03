@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RHEL8 オフライン環境への Pacemaker 2.1系 導入手順書</title>
+<style>
+  :root {
+    --navy: #12335c;
+    --navy-2: #1d4a7e;
+    --ink: #1c2733;
+    --line: #d7dee6;
+    --panel: #f5f7fa;
+    --accent: #0e7490;
+    --ok-bg: #eefaf3;
+    --ok-line: #9fd7b8;
+    --ok-ink: #0a5c3b;
+    --warn-bg: #fff8e8;
+    --warn-line: #e7c576;
+    --warn-ink: #7a5410;
+    --bad-bg: #fdf0ef;
+    --bad-line: #e3a19c;
+    --bad-ink: #8f2318;
+    --term-bg: #101820;
+    --term-cmd: #8fd8e8;
+    --term-cmt: #7a8a99;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    color: var(--ink);
+    background: #fff;
+    font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic Medium", "Yu Gothic", Meiryo, sans-serif;
+    font-size: 15px;
+    line-height: 1.85;
+  }
+
+  .wrap { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+
+  header {
+    background: var(--navy);
+    color: #fff;
+    padding: 34px 0 30px;
+    border-bottom: 4px solid var(--accent);
+  }
+  .doc-label {
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    color: #9db8d6;
+    margin-bottom: 10px;
+    font-weight: 600;
+  }
+  header h1 { margin: 0 0 10px; font-size: 25px; line-height: 1.5; }
+  .subtitle { margin: 0; color: #c3d4e8; font-size: 14px; }
+
+  h2.sec {
+    margin: 52px 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--navy);
+    font-size: 20px;
+    color: var(--navy);
+  }
+
+  /* 環境表 */
+  table.env { width: 100%; border-collapse: collapse; margin: 28px 0 8px; font-size: 14px; }
+  table.env th, table.env td { border: 1px solid var(--line); padding: 9px 13px; text-align: left; vertical-align: top; }
+  table.env th { background: var(--panel); width: 165px; font-weight: 600; color: var(--navy); white-space: nowrap; }
+  code.inline {
+    font-family: ui-monospace, "SF Mono", Consolas, "Courier New", monospace;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 13px;
+  }
+
+  /* 通知枠 */
+  .notice { background: var(--warn-bg); border: 1px solid var(--warn-line); border-left: 5px solid var(--warn-line); border-radius: 6px; padding: 16px 20px; margin: 26px 0; }
+  .notice h3 { margin: 0 0 8px; font-size: 15.5px; color: var(--warn-ink); }
+  .notice ol { margin: 6px 0 0; padding-left: 22px; }
+  .notice li { margin-bottom: 7px; }
+
+  /* 実障害枠 */
+  .incident { background: var(--bad-bg); border: 1px solid var(--bad-line); border-left: 5px solid var(--bad-ink); border-radius: 6px; padding: 14px 18px; margin: 18px 0; }
+  .incident .inc-label {
+    display: inline-block;
+    background: var(--bad-ink);
+    color: #fff;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 2px 10px;
+    border-radius: 3px;
+    margin-bottom: 8px;
+  }
+  .incident p { margin: 6px 0; }
+  .incident strong { color: var(--bad-ink); }
+
+  /* 確認枠 */
+  .check { background: var(--ok-bg); border: 1px solid var(--ok-line); border-radius: 6px; padding: 11px 16px; margin: 14px 0; }
+  .check .ck-label { font-weight: 700; color: var(--ok-ink); margin-right: 8px; }
+  .check ul { margin: 4px 0 0; padding-left: 20px; }
+  .check li { margin-bottom: 4px; }
+
+  /* STEPカード */
+  .step { border: 1px solid var(--line); border-radius: 8px; padding: 22px 26px 18px; margin: 26px 0; break-inside: avoid; }
+  .step-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+  .step-head h3 { margin: 0; font-size: 18px; color: var(--navy); }
+  .num {
+    background: var(--navy);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 3px 11px;
+    border-radius: 4px;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  .chip { font-size: 12px; font-weight: 700; padding: 2px 11px; border-radius: 999px; white-space: nowrap; }
+  .chip.work { background: #e3edf8; color: #1d4a7e; border: 1px solid #b6cce6; }
+  .chip.target { background: #e7f6ec; color: #0a5c3b; border: 1px solid #a9dcbd; }
+  .chip.rep { background: #f1e9f9; color: #5b2d8e; border: 1px solid #d2bced; }
+
+  /* ターミナル */
+  pre.term {
+    background: var(--term-bg);
+    color: var(--term-cmd);
+    font-family: ui-monospace, "SF Mono", Consolas, "Courier New", monospace;
+    font-size: 13px;
+    border: 1px solid #2a3743;
+    border-radius: 6px;
+    padding: 13px 17px;
+    overflow-x: auto;
+    line-height: 1.75;
+    margin: 12px 0;
+  }
+  pre.term .cmt { color: var(--term-cmt); }
+  pre.term .ph { background: #3d2b14; color: #f2c078; border-radius: 3px; padding: 0 4px; }
+
+  /* 出力例 */
+  pre.out {
+    background: var(--panel);
+    color: #37474f;
+    font-family: ui-monospace, "SF Mono", Consolas, "Courier New", monospace;
+    font-size: 12.5px;
+    border: 1px dashed var(--line);
+    border-radius: 6px;
+    padding: 10px 15px;
+    overflow-x: auto;
+    line-height: 1.7;
+    margin: 10px 0;
+  }
+
+  /* フロー図 */
+  pre.flow {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 15px 20px;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.8;
+    overflow-x: auto;
+    color: var(--ink);
+  }
+
+  /* 目次 */
+  nav.toc { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 18px 24px; margin: 26px 0; font-size: 14px; }
+  nav.toc h3 { margin: 0 0 8px; font-size: 15px; color: var(--navy); }
+  nav.toc ol { margin: 0; padding-left: 22px; columns: 2; column-gap: 40px; }
+  nav.toc li { margin-bottom: 5px; break-inside: avoid; }
+  nav.toc a { color: var(--navy-2); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  nav.toc a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .toc-inc { color: var(--bad-ink); font-size: 12px; font-weight: 700; }
+
+  /* 補足・用語 */
+  .aside { font-size: 13.5px; color: #4a5a68; margin: 10px 0; padding-left: 14px; border-left: 3px solid var(--line); }
+  table.terms { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 14px 0; }
+  table.terms th, table.terms td { border: 1px solid var(--line); padding: 7px 12px; text-align: left; }
+  table.terms th { background: var(--panel); color: var(--navy); white-space: nowrap; }
+
+  footer {
+    margin-top: 56px;
+    padding: 18px 0 40px;
+    border-top: 1px solid var(--line);
+    font-size: 12.5px;
+    color: #55677a;
+  }
+
+  @media (max-width: 640px) {
+    nav.toc ol { columns: 1; }
+    .step { padding: 16px 16px 12px; }
+  }
+
+  @media print {
+    header { background: #fff; color: var(--ink); border-bottom: 3px solid var(--navy); }
+    .subtitle, .doc-label { color: #444; }
+    pre.term { background: #f2f4f6; color: #1c2733; border: 1px solid var(--line); }
+    pre.term .cmt { color: #667; }
+    pre.term .ph { background: #fbe8c8; color: #7a4b00; }
+    .step, .incident, .notice, .check { break-inside: avoid; }
+    nav.toc { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="doc-label">RUNBOOK / OFFLINE INSTALL — 02</div>
+    <h1>RHEL8 オフライン環境への Pacemaker 2.1系(pcs / corosync)導入手順書</h1>
+    <p class="subtitle">インターネット接続可能な作業用マシンで HA パッケージ一式を収集し、閉域のターゲットノード群へ持ち込んでクラスタを構築する。実際の作業で発生した障害 2 件(checksum エラー / モジュラリティエラー)の対策を手順に組み込み済み。</p>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <table class="env">
+    <tr>
+      <th>作業用マシン</th>
+      <td>Azure 上の RHEL8(RHUI 構成 / subscription-manager 登録不要)。root で作業。<br>
+      作業ディレクトリ: <code class="inline">/mnt/offline-rpms-ha</code>(/mnt は一時ディスク。注意事項参照)</td>
+    </tr>
+    <tr>
+      <th>ターゲットマシン</th>
+      <td>閉域環境の RHEL8。<strong>クラスタを組む全ノード(通常 2 台以上)</strong>。配置先: <code class="inline">/opt/offline-rpms-ha</code></td>
+    </tr>
+    <tr>
+      <th>前提条件</th>
+      <td>作業用マシンと全ターゲットノードの RHEL8 マイナーバージョンが一致していること。<br>
+      Pacemaker <strong>2.1 系は RHEL 8.5 以降</strong>で提供される(バージョンは OS のマイナーバージョンに紐付き、任意には選べない。例: 8.10 → 2.1.7)。8.4 以前だと 2.0 系になるため注意。</td>
+    </tr>
+    <tr>
+      <th>導入対象</th>
+      <td><code class="inline">pcs</code> / <code class="inline">pacemaker</code> / <code class="inline">corosync</code> / <code class="inline">fence-agents-all</code> / <code class="inline">resource-agents</code>(いずれも HighAvailability リポジトリから収集)</td>
+    </tr>
+    <tr>
+      <th>実施範囲の凡例</th>
+      <td><span class="chip work">作業用マシン</span> ネット接続可の収集マシンで実施 /
+          <span class="chip target">ターゲット・全ノード</span> 閉域の全ノードで実施 /
+          <span class="chip rep">代表ノードのみ</span> クラスタのうち 1 台でのみ実施</td>
+    </tr>
+  </table>
+
+  <div class="notice">
+    <h3>作業前の必読事項(全工程共通ルール)</h3>
+    <ol>
+      <li><strong>コマンドは手打ちせず、必ずコピー&amp;ペースト</strong>で実行する(過去にタイプミスで障害発生)。</li>
+      <li>各コマンドの直後に <code class="inline">echo $?</code> を実行し、<strong>0 なら成功・0 以外なら失敗</strong>。0 以外なら画面出力を保存してから対処する。</li>
+      <li>各 STEP の確認が <strong>OK になるまで次へ進まない</strong>。</li>
+      <li><strong>【重要】<code class="inline">/mnt</code> は Azure の一時ディスク。</strong>VM を停止(割り当て解除)すると中身が消える。作業は 1 セッションで STEP 6(tar 化)まで完了させ、tar.gz は必ず <code class="inline">/root/</code> に出力する。日をまたぐ場合は tar.gz を先に退避する。</li>
+      <li>倉庫(ローカルリポジトリ)の中身を変更したら、必ず 4 点セットで回す: <strong>① createrepo_c で目録再生成 → ② tar 再作成・再運搬 → ③ ターゲットで dnf clean all → ④ repolist で確認</strong>。</li>
+      <li><span style="color: var(--bad-ink); font-weight:700;">今回の実作業で障害が 2 件発生している。</span>該当箇所(STEP 0 と STEP 7)の「実障害」枠を必ず読むこと。対策は手順自体に組み込み済みだが、飛ばすと再発する。</li>
+    </ol>
+  </div>
+
+  <h2 class="sec">全体の流れ</h2>
+  <pre class="flow">【作業用マシン(ネット可・root)】
+ STEP 0  前回作業の痕跡掃除          ★実障害①の再発防止
+ STEP 1  前提確認
+ STEP 2  HA リポジトリの確認と有効化
+ STEP 3  対象パッケージと 2.1系の確認
+ STEP 4  RPM を一括ダウンロード
+ STEP 5  倉庫化して依存検証
+ STEP 6  tar で固める(/root/ に出力)
+      ↓ USB 等で「全ノード」へ運搬
+【ターゲットマシン(閉域・全ノードで実施)】
+ STEP 7  展開とリポジトリ登録        ★実障害②の対策組み込み済み
+ STEP 8  インストール
+ STEP 9  ノード共通の初期設定
+【代表ノード 1 台のみ】
+ STEP 10 クラスタ作成と起動確認
+【全ノード】
+ STEP 11 後片付け</pre>
+
+  <nav class="toc">
+    <h3>目次</h3>
+    <ol>
+      <li><a href="#s0">STEP 0: 前回作業の痕跡掃除</a> <span class="toc-inc">★障害①</span></li>
+      <li><a href="#s1">STEP 1: 前提確認</a></li>
+      <li><a href="#s2">STEP 2: HA リポジトリの確認と有効化</a></li>
+      <li><a href="#s3">STEP 3: 対象パッケージと 2.1系の確認</a></li>
+      <li><a href="#s4">STEP 4: RPM を一括ダウンロード</a></li>
+      <li><a href="#s5">STEP 5: 倉庫化して依存検証</a></li>
+      <li><a href="#s6">STEP 6: tar で固める</a></li>
+      <li><a href="#s7">STEP 7: 展開とリポジトリ登録</a> <span class="toc-inc">★障害②</span></li>
+      <li><a href="#s8">STEP 8: インストール</a></li>
+      <li><a href="#s9">STEP 9: ノード共通の初期設定</a></li>
+      <li><a href="#s10">STEP 10: クラスタ作成と起動確認</a></li>
+      <li><a href="#s11">STEP 11: 後片付け</a></li>
+      <li><a href="#trouble">付録A: トラブルシュート集</a></li>
+      <li><a href="#terms">付録B: 用語の最小まとめ</a></li>
+    </ol>
+  </nav>
+
+  <h2 class="sec">【作業用マシン】収集フェーズ</h2>
+
+  <!-- ================= STEP 0 ================= -->
+  <section class="step" id="s0">
+    <div class="step-head">
+      <span class="num">STEP 0</span>
+      <h3>前回作業の痕跡掃除(GNOME/xrdp 収集の残骸を無効化)</h3>
+      <span class="chip work">作業用マシン</span>
+    </div>
+
+    <div class="incident">
+      <span class="inc-label">実障害 ①</span>
+      <p><strong>症状:</strong> STEP 4 の <code class="inline">dnf download</code> 実行時に「<strong>incorrect checksum</strong>」エラーが出て、ダウンロード全体が失敗した。</p>
+      <p><strong>原因:</strong> 前回の GNOME/xrdp オフライン作業で作った <code class="inline">offline.repo</code>(ローカル倉庫の定義)が残っており、dnf が依存計算のためにその古い目録を読み込もうとして、参照先の実体と目録の checksum が食い違った。古い dnf キャッシュも悪さをする。</p>
+      <p><strong>対策:</strong> 本 STEP 0 として手順に組み込み済み。収集作業の前に必ず実施する。</p>
+    </div>
+
+    <p>まず、前回作業のリポジトリ定義が残っていないかを確認します。</p>
+
+<pre class="term">ls /etc/yum.repos.d/</pre>
+<pre class="term">dnf repolist all 2&gt;/dev/null</pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li><code class="inline">offline.repo</code> のような前回作成のファイルがあるか。</li>
+        <li>repolist に <code class="inline">offline</code> という名前のリポジトリが enabled で出ていないか。</li>
+      </ul>
+    </div>
+
+    <p><strong>残っていた場合のみ</strong>、削除ではなく退避します(前回環境を再現したくなった場合に戻せるようにするため)。</p>
+
+<pre class="term">mv /etc/yum.repos.d/offline.repo /root/offline.repo.bak</pre>
+
+    <p class="aside">ファイル名が違う場合は、実際のファイル名に読み替えて退避してください。<code class="inline">redhat.repo</code> や <code class="inline">rh-cloud*.repo</code> 等の元からあるファイルは触らないこと。</p>
+
+    <p>次に、dnf のキャッシュ(古い目録)を完全に捨てます。</p>
+
+<pre class="term">dnf clean all</pre>
+<pre class="term">rm -rf /var/cache/dnf</pre>
+<pre class="term">dnf repolist</pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li>最後の <code class="inline">dnf repolist</code> がエラーなく完了し、目録の再取得が走ること。</li>
+        <li>一覧に <code class="inline">offline</code> が<strong>出ていない</strong>こと。</li>
+        <li>BaseOS 系 / AppStream 系のリポジトリが出ていること(HighAvailability は次 STEP で有効化)。もし前回の作業の名残で BaseOS/AppStream が disabled になっていたら、<code class="inline">dnf config-manager --set-enabled リポジトリID</code> で戻す。</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ================= STEP 1 ================= -->
+  <section class="step" id="s1">
+    <div class="step-head">
+      <span class="num">STEP 1</span>
+      <h3>前提確認</h3>
+      <span class="chip work">作業用マシン</span>
+    </div>
+
+<pre class="term">cat /etc/redhat-release</pre>
+<pre class="term">whoami</pre>
+<pre class="term">df -h /mnt</pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li>RHEL バージョンが <strong>8.5 以上</strong>であること(2.1 系の必須条件)。かつ<strong>全ターゲットノードと一致</strong>していること(ターゲット側でも同じコマンドで確認しておく)。</li>
+        <li><code class="inline">whoami</code> が <code class="inline">root</code> であること(一般ユーザーの場合は先に <code class="inline">sudo -i</code>)。</li>
+        <li><code class="inline">/mnt</code> の空きが 5GB 以上あること(Pacemaker 一式は依存込みでも通常 1GB 未満)。</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ================= STEP 2 ================= -->
+  <section class="step" id="s2">
+    <div class="step-head">
+      <span class="num">STEP 2</span>
+      <h3>HA リポジトリの確認と有効化</h3>
+      <span class="chip work">作業用マシン</span>
+    </div>
+
+    <p><strong>説明:</strong> Pacemaker 関連(pacemaker / corosync / pcs / fence-agents 類)は BaseOS や AppStream ではなく「<strong>HighAvailability</strong>」という専用リポジトリで配布されています。まず、このマシンからそのリポジトリが見えるかを確認します。</p>
+
+<pre class="term">dnf repolist all 2&gt;/dev/null | grep -i -E 'high|ha-'</pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li><code class="inline">highavailability</code> を含む行が出ること(repo ID の例: <code class="inline">rhui-rhel-8-for-x86_64-highavailability-rhui-rpms</code>)。行末が disabled でも、存在すれば OK。</li>
+        <li>1 行も出ない場合は、この STEP の末尾「行が 1 つも出ない場合」へ。</li>
+      </ul>
+    </div>
+
+    <p>表示された repo ID を使って有効化します。<span class="ph">下の repo ID は例。必ず実際の出力の ID に置き換える</span>こと。</p>
+
+<pre class="term">dnf config-manager --set-enabled <span class="ph">rhui-rhel-8-for-x86_64-highavailability-rhui-rpms</span></pre>
+<pre class="term">dnf repolist | grep -i high</pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li>有効なリポジトリ一覧に highavailability が表示されること。</li>
+      </ul>
+    </div>
+
+    <p class="aside"><strong>行が 1 つも出ない場合:</strong> Azure の通常 RHEL イメージには HA リポジトリが付いていないことがある(HA リポジトリ付きは「RHEL with HA」という別イメージ)。その場合は、① Azure 上に「RHEL 8 with HA」イメージで作業用 VM をもう 1 台立てる(前回と同じ RHUI 構成のままにできるので確実)、② Red Hat アカウントで <code class="inline">subscription-manager register</code> して HA repo を有効化する、のいずれかで対応する。詳細は付録 A-5。</p>
+  </section>
+
+  <!-- ================= STEP 3 ================= -->
+  <section class="step" id="s3">
+    <div class="step-head">
+      <span class="num">STEP 3</span>
+      <h3>対象パッケージの存在確認と 2.1 系バージョン確認</h3>
+      <span class="chip work">作業用マシン</span>
+    </div>
+
+    <p><strong>説明:</strong> 導入する 5 点の役割は以下です。</p>
+    <table class="terms">
+      <tr><th>pacemaker</th><td>クラスタ制御の本体(リソースの起動・停止・フェイルオーバー判断)</td></tr>
+      <tr><th>corosync</th><td>ノード間の生存監視と通信層。Pacemaker の土台</td></tr>
+      <tr><th>pcs</th><td>クラスタを操作する管理コマンド + 管理デーモン(pcsd)。実作業はほぼこれ経由</td></tr>
+      <tr><th>fence-agents-all</th><td>障害ノードを強制停止する「フェンシング」用エージェント集</td></tr>
+      <tr><th>resource-agents</th><td>IP アドレスやファイルシステム等をクラスタ管理するための部品集</td></tr>
+    </table>
+
+<pre class="term">LANG=C dnf info pcs pacemaker corosync fence-agents-all resource-agents &gt; /root/ha-pkg-check.txt; echo $?</pre>
+<pre class="term">grep -c "Name" /root/ha-pkg-check.txt</pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li><code class="inline">echo $?</code> が 0。</li>
+        <li>grep の結果が <strong>5 以上</strong>(5 つとも見つかっている)。</li>
+        <li>「No matching packages」が出る場合は STEP 2 が未完。</li>
+      </ul>
+    </div>
+
+    <p>ダウンロード前に、実際に取得される Pacemaker のバージョンを目で確認します。</p>
+
+<pre class="term">LANG=C dnf info pacemaker | grep -E '^(Name|Version)'</pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li><code class="inline">Version</code> が <strong>2.1.x</strong> であること。</li>
+        <li>2.0.x の場合は作業用マシンが RHEL 8.4 以前。ターゲットとバージョンが揃っているかを含め、前提から見直す(2.1 系にするには両側とも 8.5 以降が必要)。</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ================= STEP 4 ================= -->
+  <section class="step" id="s4">
+    <div class="step-head">
+      <span class="num">STEP 4</span>
+      <h3>RPM を一括ダウンロード</h3>
+      <span class="chip work">作業用マシン</span>
+    </div>
+
+    <p><strong>説明:</strong> <code class="inline">--resolve --alldeps</code> で、作業用マシンにインストール済みかどうかを無視して、依存関係ごと全部かき集めます(ターゲットに何が入っているか分からないため)。</p>
+
+<pre class="term">mkdir -p /mnt/offline-rpms-ha</pre>
+<pre class="term">cd /mnt/offline-rpms-ha</pre>
+<pre class="term">dnf download --resolve --alldeps --downloaddir=/mnt/offline-rpms-ha pcs pacemaker corosync fence-agents-all resource-agents; echo $?</pre>
+<pre class="term">ls /mnt/offline-rpms-ha/*.rpm | wc -l</pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li><code class="inline">echo $?</code> が 0。</li>
+        <li>RPM 個数が目安 <strong>80〜250 個</strong>(fence-agents-all が依存を多く引き込むため幅がある)。1 桁ならダウンロード失敗。</li>
+      </ul>
+    </div>
+
+    <div class="incident">
+      <span class="inc-label">実障害 ① 関連</span>
+      <p>ここで「<strong>incorrect checksum</strong>」が出た場合は STEP 0 の掃除が不足している。付録 A-1 の切り分けを実施してから再実行する。なお <code class="inline">dnf download</code> は再実行すれば上書きで取り直すため、途中まで溜まった RPM フォルダを消す必要はない。</p>
+    </div>
+  </section>
+
+  <!-- ================= STEP 5 ================= -->
+  <section class="step" id="s5">
+    <div class="step-head">
+      <span class="num">STEP 5</span>
+      <h3>倉庫化して依存検証</h3>
+      <span class="chip work">作業用マシン</span>
+    </div>
+
+    <p><strong>説明:</strong> ただの RPM ファイルの山を、dnf が「倉庫」として認識できるように目録(repodata)を生成します。</p>
+
+<pre class="term">createrepo_c /mnt/offline-rpms-ha; echo $?</pre>
+<pre class="term">ls /mnt/offline-rpms-ha/repodata/repomd.xml</pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li><code class="inline">repomd.xml</code> が存在すること(前回、これが無くて詰まった)。</li>
+      </ul>
+    </div>
+
+    <p>次に、<strong>運搬する前に</strong>「この倉庫だけでインストールが完結するか」をリハーサルします。<code class="inline">--assumeno</code> なので実際にはインストールされません。</p>
+
+<pre class="term">dnf install --assumeno --disablerepo="*" --repofrompath=offline-test,/mnt/offline-rpms-ha --setopt=offline-test.gpgcheck=0 pcs pacemaker corosync fence-agents-all resource-agents</pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li>依存関係の一覧が表示された後、「Operation aborted」(no と答えた扱い)で終われば OK。</li>
+        <li>「nothing provides 〜」等のエラーが出たら NG。そのパッケージ名を STEP 4 のコマンド末尾に追加して再ダウンロードし、<strong>createrepo_c からやり直す</strong>(共通ルール 5 の 4 点セット)。</li>
+      </ul>
+    </div>
+
+    <p class="aside">このリハーサルは作業用マシン視点の計算のため完全ではないが、<code class="inline">--alldeps</code> で取得していれば実用上ここを通れば大丈夫。なお、実障害②(モジュラリティ)は<strong>このリハーサルでは検出できない</strong>(本物のリポジトリが生きている作業用マシン上では発生しないため)。対策は STEP 7 に組み込み済み。</p>
+  </section>
+
+  <!-- ================= STEP 6 ================= -->
+  <section class="step" id="s6">
+    <div class="step-head">
+      <span class="num">STEP 6</span>
+      <h3>tar で固める</h3>
+      <span class="chip work">作業用マシン</span>
+    </div>
+
+<pre class="term">tar czf /root/offline-rpms-ha.tar.gz -C /mnt offline-rpms-ha; echo $?</pre>
+<pre class="term">ls -lh /root/offline-rpms-ha.tar.gz</pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li>ファイルが存在し、サイズが数百 MB 程度あること。</li>
+        <li>出力先が <code class="inline">/root/</code> であること(/mnt に置いたままにしない。VM 停止で消えるため)。</li>
+      </ul>
+    </div>
+
+    <p class="aside"><code class="inline">-C /mnt</code> を付けているので、展開時に <code class="inline">/opt/root/...</code> のような余計な深い階層はできない(前回発生した事象の再発防止)。この tar.gz を USB 等で<strong>クラスタを組む全ノード</strong>の <code class="inline">/root/</code> に運搬する。</p>
+  </section>
+
+  <h2 class="sec">【ターゲットマシン】導入フェーズ(全ノードで実施)</h2>
+
+  <!-- ================= STEP 7 ================= -->
+  <section class="step" id="s7">
+    <div class="step-head">
+      <span class="num">STEP 7</span>
+      <h3>展開とリポジトリ登録(モジュラリティ対策込み)</h3>
+      <span class="chip target">ターゲット・全ノード</span>
+    </div>
+
+    <div class="incident">
+      <span class="inc-label">実障害 ②</span>
+      <p><strong>症状:</strong> STEP 8 のインストールが途中まで進んだ後、「<strong>No available modular metadata for modular package</strong>」エラーで失敗した。</p>
+      <p><strong>原因:</strong> RHEL8 特有の「モジュラリティ」機構。AppStream 由来のパッケージの一部(perl / python 系など、fence-agents の依存で混入)は「モジュール」に属しており、本物のリポジトリには通常の目録に加えて<strong>モジュール用の目録(modules.yaml)</strong>が入っている。ところが STEP 5 の createrepo_c は通常の目録しか作れないため、ターゲットの dnf が「モジュール所属のはずなのに目録が無い」と判断してインストールを拒否した。</p>
+      <p><strong>対策:</strong> repo 定義に <code class="inline">module_hotfixes=1</code>(このリポジトリはモジュール管理の対象外として扱え、という指示)を入れる。<strong>下の repo ファイルに組み込み済み</strong>なので、この STEP をそのまま実施すれば再発しない。正攻法(モジュール目録の合成)は付録 A-2 の対処法 B。</p>
+    </div>
+
+    <p>tar.gz を <code class="inline">/root/</code> に置いた前提です。展開します。</p>
+
+<pre class="term">tar xzf /root/offline-rpms-ha.tar.gz -C /opt/; echo $?</pre>
+<pre class="term">ls /opt/offline-rpms-ha/repodata/repomd.xml</pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li><code class="inline">repomd.xml</code> が存在すること。無い場合は付録 A-3 参照。</li>
+        <li><code class="inline">/opt/root/...</code> のような深い階層になっていないこと(なっていたら付録 A-3)。</li>
+      </ul>
+    </div>
+
+    <p>リポジトリ定義を作成します。<strong>6 行目の <code class="inline">module_hotfixes=1</code> が実障害②の対策</strong>です。絶対に省かないこと。</p>
+
+<pre class="term">tee /etc/yum.repos.d/offline-ha.repo &lt;&lt; 'EOF'
+[offline-ha]
+name=Offline HA Local Repository
+baseurl=file:///opt/offline-rpms-ha
+enabled=1
+gpgcheck=0
+module_hotfixes=1
+EOF</pre>
+
+<pre class="term">dnf clean all</pre>
+<pre class="term">dnf --disablerepo="*" --enablerepo="offline-ha" repolist</pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li>repolist に <code class="inline">offline-ha</code> が表示され、エラーが出ないこと。</li>
+        <li><code class="inline">cat /etc/yum.repos.d/offline-ha.repo</code> で <code class="inline">module_hotfixes=1</code> の行が入っていることを目視確認。</li>
+      </ul>
+    </div>
+
+    <p class="aside"><strong>module_hotfixes=1 の注意点:</strong> モジュールのバージョン整合チェックを丸ごと無効にする設定。今回のように「1 つの作業用マシンから一度に収集した整合の取れたパッケージ群」を入れる分には実害はまずないが、この repo を恒久的に置いて後から別のパッケージを混ぜていく使い方には向かない。全 STEP 完了後に STEP 11 で無効化する。</p>
+  </section>
+
+  <!-- ================= STEP 8 ================= -->
+  <section class="step" id="s8">
+    <div class="step-head">
+      <span class="num">STEP 8</span>
+      <h3>インストール</h3>
+      <span class="chip target">ターゲット・全ノード</span>
+    </div>
+
+<pre class="term">dnf --disablerepo="*" --enablerepo="offline-ha" install -y pcs pacemaker corosync fence-agents-all resource-agents; echo $?</pre>
+<pre class="term">rpm -q pcs pacemaker corosync</pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li><code class="inline">echo $?</code> が 0。</li>
+        <li><code class="inline">rpm -q</code> で 3 つとも<strong>バージョン付きで</strong>表示されること(「is not installed」が出たら NG)。</li>
+        <li>pacemaker のバージョンが <strong>2.1.x</strong> であること(最終確認)。</li>
+      </ul>
+    </div>
+
+    <p class="aside">「No available modular metadata」が再発した場合は、STEP 7 の repo ファイルに <code class="inline">module_hotfixes=1</code> が入っていない(付録 A-2)。依存パッケージ不足のエラーが出た場合は付録 A-4。なお dnf のトランザクションはチェック段階で止まるため、エラーで失敗しても中途半端にインストールされている心配はほぼない(<code class="inline">rpm -q</code> で全部「is not installed」ならクリーンな状態)。</p>
+  </section>
+
+  <!-- ================= STEP 9 ================= -->
+  <section class="step" id="s9">
+    <div class="step-head">
+      <span class="num">STEP 9</span>
+      <h3>ノード共通の初期設定</h3>
+      <span class="chip target">ターゲット・全ノード</span>
+    </div>
+
+    <h4 style="color: var(--navy); margin: 18px 0 6px;">9-1. ノード名の相互解決(閉域では特に重要)</h4>
+    <p><strong>説明:</strong> クラスタはノード同士が名前で通信する。閉域環境は DNS が無いことが多いので、<code class="inline">/etc/hosts</code> に全ノードを登録する。<span class="ph">IP とホスト名は実環境の値に置き換える</span>こと。<strong>全ノードで同じ内容</strong>にすること。</p>
+
+<pre class="term">tee -a /etc/hosts &lt;&lt; 'EOF'
+<span class="ph">192.168.10.11</span>  <span class="ph">node1</span>
+<span class="ph">192.168.10.12</span>  <span class="ph">node2</span>
+EOF</pre>
+<pre class="term">ping -c 2 <span class="ph">node1</span>; ping -c 2 <span class="ph">node2</span></pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li>全ノード名に対して ping が返ること。</li>
+        <li>3 ノード以上の構成の場合は、その分の行をすべて追加すること。</li>
+      </ul>
+    </div>
+
+    <h4 style="color: var(--navy); margin: 18px 0 6px;">9-2. hacluster ユーザーのパスワード設定</h4>
+    <p><strong>説明:</strong> インストール時に <code class="inline">hacluster</code> という管理用ユーザーが自動作成されている。ノード間の認証に使うのでパスワードを設定する。<strong>全ノードで同じパスワード</strong>にすること。</p>
+
+<pre class="term">passwd hacluster</pre>
+
+    <h4 style="color: var(--navy); margin: 18px 0 6px;">9-3. pcsd の起動とファイアウォール</h4>
+
+<pre class="term">systemctl enable --now pcsd</pre>
+<pre class="term">systemctl is-active pcsd</pre>
+<pre class="term">firewall-cmd --permanent --add-service=high-availability</pre>
+<pre class="term">firewall-cmd --reload</pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li><code class="inline">is-active</code> が <code class="inline">active</code> であること。</li>
+        <li>firewall-cmd が両方 <code class="inline">success</code> であること。</li>
+        <li>ここまでの STEP 7〜9 を<strong>全ノードで完了</strong>していることを確認してから STEP 10 へ。</li>
+      </ul>
+    </div>
+  </section>
+
+  <h2 class="sec">【代表ノード 1 台のみ】クラスタ構築フェーズ</h2>
+
+  <!-- ================= STEP 10 ================= -->
+  <section class="step" id="s10">
+    <div class="step-head">
+      <span class="num">STEP 10</span>
+      <h3>クラスタ作成と起動確認</h3>
+      <span class="chip rep">代表ノードのみ</span>
+    </div>
+
+    <p><strong>説明:</strong> ここからはクラスタ全体への操作なので、どれか 1 台(例: node1)でだけ実行する。<span class="ph">node1 / node2 / mycluster は実環境の値に置き換える</span>(ノード名は 9-1 で /etc/hosts に登録した名前と一致させること)。</p>
+
+    <p>まずノード間の相互認証。パスワードを聞かれたら 9-2 で設定したものを入力する。</p>
+
+<pre class="term">pcs host auth <span class="ph">node1</span> <span class="ph">node2</span> -u hacluster</pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li>各ノードに <code class="inline">Authorized</code> と表示されること。失敗したら付録 A-6。</li>
+      </ul>
+    </div>
+
+<pre class="term">pcs cluster setup <span class="ph">mycluster</span> <span class="ph">node1</span> <span class="ph">node2</span>; echo $?</pre>
+<pre class="term">pcs cluster start --all</pre>
+<pre class="term">pcs cluster enable --all</pre>
+<pre class="term">pcs status</pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li><code class="inline">pcs status</code> で全ノードが <code class="inline">Online</code> になっていること(反映まで数十秒かかることがある)。</li>
+        <li><code class="inline">Current DC</code> 行のカッコ内に <code class="inline">version 2.1.x-...</code> と表示されること(2.1 系で稼働している最終確認)。</li>
+      </ul>
+    </div>
+
+    <div class="notice">
+      <h3>STONITH(フェンシング)について</h3>
+      <p style="margin: 6px 0;">この時点では <code class="inline">pcs status</code> に「no stonith devices and stonith-enabled is not false」という警告が出る。フェンシングは障害ノードを強制停止する仕組みで、<strong>本番運用では必須</strong>だが、設定方法はハードウェア(iLO/iDRAC、Azure なら fence_azure_arm 等)に完全に依存するため本書の範囲外とする。<strong>検証目的で一時的に警告を消すだけ</strong>なら以下を実行できる:</p>
+<pre class="term">pcs property set stonith-enabled=false</pre>
+      <p style="margin: 6px 0;">ただし、この状態での本番運用はスプリットブレイン(両系同時稼働によるデータ破壊)のリスクがあるため<strong>非推奨</strong>。本番移行時には必ず環境に合ったフェンス設定を行うこと。</p>
+    </div>
+  </section>
+
+  <!-- ================= STEP 11 ================= -->
+  <section class="step" id="s11">
+    <div class="step-head">
+      <span class="num">STEP 11</span>
+      <h3>後片付け(オフラインリポジトリの無効化)</h3>
+      <span class="chip target">ターゲット・全ノード</span>
+    </div>
+
+    <p><strong>説明:</strong> <code class="inline">module_hotfixes=1</code> 付きのリポジトリを有効なまま恒久的に残すのは避けたい(STEP 7 の注意点参照)。また、今回の実障害①は「前回の offline リポジトリの残骸」が原因だった。<strong>同じ轍を次回作業で踏まないため</strong>にも、導入が完了したら無効化しておく。</p>
+
+<pre class="term">sed -i 's/^enabled=1/enabled=0/' /etc/yum.repos.d/offline-ha.repo</pre>
+<pre class="term">dnf clean all</pre>
+<pre class="term">grep enabled /etc/yum.repos.d/offline-ha.repo</pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li><code class="inline">enabled=0</code> と表示されること。</li>
+        <li>後日この倉庫から追加インストールしたい場合は、<code class="inline">enabled=0</code> のまま <code class="inline">dnf --enablerepo=offline-ha install ...</code> のように一時的に有効化して使えばよい(定義ファイルと /opt の実体は残しておく)。</li>
+      </ul>
+    </div>
+  </section>
+
+  <h2 class="sec" id="trouble">付録A: トラブルシュート集</h2>
+  <p>今回の実作業で発生した障害(A-1、A-2)と、起こり得る典型パターンをまとめる。</p>
+
+  <!-- A-1 -->
+  <section class="step">
+    <div class="step-head">
+      <span class="num" style="background: var(--bad-ink);">A-1</span>
+      <h3>「incorrect checksum」で dnf download が失敗する ★実障害①</h3>
+      <span class="chip work">作業用マシン</span>
+    </div>
+    <p><strong>症状:</strong> STEP 4 の <code class="inline">dnf download</code> がエラーで止まる。</p>
+    <p><strong>原因:</strong> <code class="inline">dnf download --resolve</code> は依存計算のために<strong>有効な全リポジトリの目録を読み込む</strong>。前回作業の offline リポジトリ定義が有効なまま残っていて、参照先(<code class="inline">/opt/offline-rpms</code> 等)の中身が消えていたり変わっていたりすると、目録と実体の checksum が食い違い、処理全体が止まる。古い dnf キャッシュ単独でも起こり得る。なお「リポジトリを disable しているだけ」ならエラーは「パッケージが見つからない」系になるはずで、checksum エラーは目録の食い違いを示す。</p>
+    <p><strong>対処(切り分け順):</strong></p>
+    <ol style="margin: 6px 0; padding-left: 22px;">
+      <li>STEP 0 を最初から実施する(repo 残骸の退避 → キャッシュ全消し)。</li>
+      <li>それでも出る場合、エラーメッセージに<strong>どのリポジトリ / どのパッケージで checksum が合わなかったか</strong>が書かれているので、該当リポジトリの定義を確認する。</li>
+      <li>必要なリポジトリ(BaseOS / AppStream / HighAvailability)が disable されていないかも <code class="inline">dnf repolist all</code> で併せて確認し、disabled なら <code class="inline">dnf config-manager --set-enabled リポジトリID</code> で戻す。</li>
+    </ol>
+  </section>
+
+  <!-- A-2 -->
+  <section class="step">
+    <div class="step-head">
+      <span class="num" style="background: var(--bad-ink);">A-2</span>
+      <h3>「No available modular metadata for modular package」 ★実障害②</h3>
+      <span class="chip target">ターゲット・全ノード</span>
+    </div>
+    <p><strong>症状:</strong> STEP 8 のインストールが途中まで進んだように見えた後、このエラーで失敗する。</p>
+    <p><strong>原因:</strong> STEP 7 の実障害②の枠を参照(createrepo_c はモジュール目録を作れない)。</p>
+    <p><strong>対処法 A(推奨・ターゲット側だけで完結):</strong> repo ファイルに <code class="inline">module_hotfixes=1</code> を入れる。STEP 7 の repo ファイルに組み込み済みなので、通常はこのエラー自体が出ない。出た場合は <code class="inline">cat /etc/yum.repos.d/offline-ha.repo</code> でこの行の有無を確認し、無ければ STEP 7 の tee コマンドを再実行 → <code class="inline">dnf clean all</code> → STEP 8 を再実行する。</p>
+    <p><strong>対処法 B(正攻法・恒久的な正式リポジトリにしたい場合):</strong> 作業用マシンの dnf キャッシュに残っている本物のモジュール目録を抜き出し、ローカル倉庫に合成する。</p>
+
+    <p style="margin-top: 12px;"><span class="chip work">作業用マシン</span> で実施:</p>
+<pre class="term">ls /var/cache/dnf/*/repodata/*modules*</pre>
+    <div class="check"><span class="ck-label">確認</span>
+      <ul><li><code class="inline">*-modules.yaml.gz</code>(または .xz)が 1 つ以上出ること。何も出ない場合は <code class="inline">dnf makecache</code> を実行してから再確認。</li></ul>
+    </div>
+<pre class="term">mkdir -p /root/modmeta</pre>
+<pre class="term">for f in /var/cache/dnf/*/repodata/*modules*; do case "$f" in *.gz) zcat "$f";; *.xz) xzcat "$f";; *) cat "$f";; esac; done &gt; /root/modmeta/modules.yaml</pre>
+<pre class="term">modifyrepo_c --mdtype=modules /root/modmeta/modules.yaml /mnt/offline-rpms-ha/repodata/; echo $?</pre>
+<pre class="term">ls /mnt/offline-rpms-ha/repodata/ | grep modules</pre>
+    <div class="check"><span class="ck-label">確認</span>
+      <ul><li>repodata 内に modules を含むファイルができていること。</li></ul>
+    </div>
+    <p>あとは「repodata フォルダだけ再運搬」で済む:</p>
+<pre class="term">tar czf /root/repodata-only.tar.gz -C /mnt/offline-rpms-ha repodata</pre>
+
+    <p style="margin-top: 12px;"><span class="chip target">ターゲット・全ノード</span> で実施(既存の repodata を丸ごと入れ替える):</p>
+<pre class="term">rm -rf /opt/offline-rpms-ha/repodata</pre>
+<pre class="term">tar xzf /root/repodata-only.tar.gz -C /opt/offline-rpms-ha/</pre>
+<pre class="term">dnf clean all</pre>
+    <p>そのうえで STEP 8 を再実行する(この場合 repo ファイルは <code class="inline">module_hotfixes</code> なしでも通る)。</p>
+  </section>
+
+  <!-- A-3 -->
+  <section class="step">
+    <div class="step-head">
+      <span class="num" style="background: var(--navy-2);">A-3</span>
+      <h3>ターゲットでの展開結果がおかしい</h3>
+      <span class="chip target">ターゲット・全ノード</span>
+    </div>
+    <p><strong>症状と対処(前回作業で実際に発生したパターン):</strong></p>
+    <ol style="margin: 6px 0; padding-left: 22px;">
+      <li><strong><code class="inline">/opt/root/offline-rpms-ha/</code> のような深い階層ができている</strong> → tar 作成時に <code class="inline">-C</code> を使わなかった場合の症状。作り直しは不要で、正しい位置に動かす:
+<pre class="term">mv /opt/root/offline-rpms-ha /opt/offline-rpms-ha
+rm -rf /opt/root</pre>
+      (repo ファイルの <code class="inline">baseurl=file:///opt/offline-rpms-ha</code> と実際の場所の一致が最終ゴール)</li>
+      <li><strong>RPM の個数が数個しかない</strong>(<code class="inline">ls /opt/offline-rpms-ha/*.rpm | wc -l</code> で確認)→ 作業用マシンでのダウンロードが不完全なまま固めた可能性。作業用マシン側で個数を確認し、必要なら STEP 4 からやり直す。</li>
+      <li><strong>repomd.xml が無い</strong> → 固める前の <code class="inline">createrepo_c</code> 忘れ。作業用マシンで STEP 5 を実行し、A-2 対処法 B と同じ要領で「repodata だけ再運搬」する。</li>
+    </ol>
+  </section>
+
+  <!-- A-4 -->
+  <section class="step">
+    <div class="step-head">
+      <span class="num" style="background: var(--navy-2);">A-4</span>
+      <h3>STEP 8 で依存パッケージ不足のエラー</h3>
+      <span class="chip target">ターゲット・全ノード</span>
+    </div>
+    <p><strong>原因:</strong> 作業用マシンとターゲットのインストール済みパッケージ構成の差。</p>
+    <p><strong>対処:</strong> エラーに出たパッケージ名を STEP 4 のコマンド末尾に追加して作業用マシンで取り直し、共通ルール 5 の 4 点セット(createrepo_c → tar 再作成・再運搬 → dnf clean all → repolist)を回してから STEP 8 を再実行する。</p>
+  </section>
+
+  <!-- A-5 -->
+  <section class="step">
+    <div class="step-head">
+      <span class="num" style="background: var(--navy-2);">A-5</span>
+      <h3>STEP 2 で HA リポジトリが 1 つも見えない</h3>
+      <span class="chip work">作業用マシン</span>
+    </div>
+    <p><strong>原因:</strong> Azure の通常 RHEL イメージ(RHUI 構成)には HighAvailability リポジトリの定義が含まれていないことがある。HA リポジトリ付きは「RHEL with HA」という別の課金イメージ。</p>
+    <p><strong>対処(いずれか):</strong></p>
+    <ol style="margin: 6px 0; padding-left: 22px;">
+      <li>Azure 上に「RHEL 8 with HA」イメージで作業用 VM をもう 1 台立てる。RHUI 構成のままなので subscription-manager 不要で、本書の手順がそのまま使える(<strong>推奨</strong>)。マイナーバージョンをターゲットに揃えることを忘れないこと。</li>
+      <li>Red Hat アカウントを持っている場合は <code class="inline">subscription-manager register</code> で登録し、<code class="inline">subscription-manager repos --enable=rhel-8-for-x86_64-highavailability-rpms</code> で有効化する(この場合 STEP 2 の repo ID はこの名前になる)。</li>
+    </ol>
+  </section>
+
+  <!-- A-6 -->
+  <section class="step">
+    <div class="step-head">
+      <span class="num" style="background: var(--navy-2);">A-6</span>
+      <h3>STEP 10 の pcs host auth が失敗する</h3>
+      <span class="chip rep">代表ノードのみ</span>
+    </div>
+    <p><strong>原因はほぼ次の 3 つのどれか。</strong>上から順に全ノードで確認する:</p>
+    <ol style="margin: 6px 0; padding-left: 22px;">
+      <li><code class="inline">/etc/hosts</code> の内容が全ノードで一致していない、または auth に指定した名前と hosts の名前が違う(9-1 を全ノードで再確認)。</li>
+      <li>pcsd が起動していない(全ノードで <code class="inline">systemctl is-active pcsd</code> が active か)。</li>
+      <li>ファイアウォールが未開放(全ノードで <code class="inline">firewall-cmd --list-services</code> に <code class="inline">high-availability</code> が含まれるか)。</li>
+    </ol>
+    <p>hacluster のパスワードが全ノードで同一かも確認する(9-2)。</p>
+  </section>
+
+  <h2 class="sec" id="terms">付録B: 用語の最小まとめ</h2>
+  <table class="terms">
+    <tr><th>HighAvailability リポジトリ</th><td>Pacemaker 関連を配布する専用リポジトリ。BaseOS / AppStream とは別で、STEP 2 での有効化が必要</td></tr>
+    <tr><th>モジュラリティ</th><td>RHEL8 の仕組みで、一部パッケージを「モジュール」として版数管理するもの。専用の目録(modules.yaml)が必要で、createrepo_c では生成できない(実障害②の根本原因)</td></tr>
+    <tr><th>module_hotfixes=1</th><td>そのリポジトリのパッケージをモジュール管理の対象外として扱わせる repo 設定。モジュール目録なしでもインストール可能になる</td></tr>
+    <tr><th>フェンシング (STONITH)</th><td>応答しなくなったノードを強制停止し、スプリットブレインを防ぐ仕組み。本番クラスタでは必須</td></tr>
+    <tr><th>スプリットブレイン</th><td>ノード間通信断で両系が「自分が正」と思い込み同時稼働する障害。共有データ破壊の原因になる</td></tr>
+    <tr><th>hacluster</th><td>pcs インストール時に自動作成される管理用ユーザー。ノード間認証に使う</td></tr>
+    <tr><th>pcsd</th><td>pcs の管理デーモン。ノード間のクラスタ操作の窓口(TCP 2224 等。firewalld の high-availability サービス定義に含まれる)</td></tr>
+    <tr><th>4 点セット</th><td>倉庫の中身を変更した際の必須手順: createrepo_c → tar 再作成・再運搬 → dnf clean all → repolist 確認</td></tr>
+  </table>
+
+  <footer>
+    <div>RHEL8 オフライン Pacemaker 2.1系 導入手順書 — 実障害 2 件(incorrect checksum / No available modular metadata)の対策組み込み済み版</div>
+    <div>関連文書: RHEL8 オフライン環境への xrdp + GNOME 導入手順書(RUNBOOK / OFFLINE INSTALL — 01)</div>
+  </footer>
+
+</div>
+</body>
+</html>

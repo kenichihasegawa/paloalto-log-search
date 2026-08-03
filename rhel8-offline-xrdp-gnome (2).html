@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RHEL8 オフライン xrdp + GNOME 導入手順書</title>
+<style>
+  :root {
+    --ink: #1c2733;
+    --paper: #f7f8f9;
+    --panel: #ffffff;
+    --line: #d8dee5;
+    --navy: #16324f;
+    --accent: #0e7490;
+    --term-bg: #10181f;
+    --term-fg: #d3e0ea;
+    --term-cmd: #7dd3fc;
+    --ok: #15803d;
+    --ok-bg: #ecfdf3;
+    --ng: #b91c1c;
+    --ng-bg: #fef2f2;
+    --warn: #b45309;
+    --warn-bg: #fffbeb;
+    --mono: "SFMono-Regular", "Consolas", "Menlo", "MS Gothic", monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.75;
+    font-size: 15px;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 0 24px 80px; }
+
+  /* ===== Header ===== */
+  header {
+    background: var(--navy);
+    color: #fff;
+    padding: 36px 0 28px;
+    margin-bottom: 32px;
+  }
+  header .wrap { padding-bottom: 0; }
+  .doc-label {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    color: #9fc3dd;
+    margin-bottom: 8px;
+  }
+  h1 { font-size: 26px; margin: 0 0 6px; font-weight: 700; }
+  .subtitle { color: #c3d6e4; font-size: 14px; margin: 0; }
+
+  /* ===== Environment table ===== */
+  table.env {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    margin: 20px 0 0;
+    font-size: 14px;
+  }
+  table.env th, table.env td {
+    border: 1px solid var(--line);
+    padding: 8px 12px;
+    text-align: left;
+    vertical-align: top;
+  }
+  table.env th { background: #eef2f5; width: 160px; font-weight: 600; }
+  table.env code { font-family: var(--mono); font-size: 13px; background: #eef2f5; padding: 1px 5px; border-radius: 3px; }
+
+  /* ===== Global notice ===== */
+  .notice {
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--warn);
+    background: var(--warn-bg);
+    padding: 14px 18px;
+    margin: 24px 0;
+    border-radius: 0 4px 4px 0;
+  }
+  .notice h2 { font-size: 15px; margin: 0 0 8px; color: var(--warn); }
+  .notice ol { margin: 0; padding-left: 22px; }
+  .notice li { margin-bottom: 6px; }
+  .notice li:last-child { margin-bottom: 0; }
+
+  /* ===== Phase / Step ===== */
+  .phase {
+    margin: 44px 0 20px;
+    padding-bottom: 8px;
+    border-bottom: 3px solid var(--navy);
+  }
+  .phase h2 { font-size: 20px; margin: 0; color: var(--navy); }
+  .phase .phase-note { font-size: 13px; color: #55677a; margin-top: 4px; }
+
+  .step {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    margin: 22px 0;
+    overflow: hidden;
+  }
+  .step-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 12px 18px;
+    background: #eef2f5;
+    border-bottom: 1px solid var(--line);
+  }
+  .step-num {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 13px;
+    color: #fff;
+    background: var(--navy);
+    padding: 2px 10px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  .step-head h3 { font-size: 16px; margin: 0; }
+  .step-body { padding: 16px 18px 18px; }
+  .step-body p { margin: 10px 0; }
+  .step-body p:first-child { margin-top: 0; }
+
+  /* ===== Terminal blocks ===== */
+  pre.term {
+    background: var(--term-bg);
+    color: var(--term-fg);
+    font-family: var(--mono);
+    font-size: 13.5px;
+    line-height: 1.6;
+    padding: 12px 16px;
+    border-radius: 5px;
+    overflow-x: auto;
+    margin: 10px 0;
+    white-space: pre;
+  }
+  pre.term .cmd { color: var(--term-cmd); }
+  pre.term .cmt { color: #6b8398; }
+  code.inline {
+    font-family: var(--mono);
+    font-size: 13px;
+    background: #eef2f5;
+    border: 1px solid var(--line);
+    padding: 1px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+
+  /* ===== Check blocks ===== */
+  .check {
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    margin: 12px 0;
+    font-size: 14px;
+    overflow: hidden;
+  }
+  .check-title {
+    font-weight: 700;
+    font-size: 13px;
+    padding: 6px 14px;
+    background: #eef2f5;
+    border-bottom: 1px solid var(--line);
+    letter-spacing: 0.05em;
+  }
+  .check-row { display: flex; border-bottom: 1px solid var(--line); }
+  .check-row:last-child { border-bottom: none; }
+  .badge {
+    flex: 0 0 64px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 10px 0;
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .badge.ok { color: var(--ok); background: var(--ok-bg); }
+  .badge.ng { color: var(--ng); background: var(--ng-bg); }
+  .check-row .desc { padding: 10px 14px; flex: 1; }
+  .check-row .desc p { margin: 0 0 6px; }
+  .check-row .desc p:last-child { margin-bottom: 0; }
+
+  /* ===== Warn inline ===== */
+  .warn-box {
+    border-left: 4px solid var(--warn);
+    background: var(--warn-bg);
+    padding: 10px 14px;
+    margin: 12px 0;
+    font-size: 14px;
+    border-radius: 0 4px 4px 0;
+  }
+  .warn-box strong { color: var(--warn); }
+
+  .info-box {
+    border-left: 4px solid var(--accent);
+    background: #f0f9fb;
+    padding: 10px 14px;
+    margin: 12px 0;
+    font-size: 14px;
+    border-radius: 0 4px 4px 0;
+  }
+
+  /* ===== Trouble section ===== */
+  .trouble {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    margin: 16px 0;
+    padding: 14px 18px;
+  }
+  .trouble h4 { margin: 0 0 8px; font-size: 15px; color: var(--ng); }
+  .trouble p { margin: 6px 0; font-size: 14px; }
+
+  /* ===== Flow ===== */
+  pre.flow {
+    font-family: var(--mono);
+    font-size: 13px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 14px 18px;
+    overflow-x: auto;
+    line-height: 1.7;
+  }
+
+  footer {
+    margin-top: 48px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+    font-size: 12.5px;
+    color: #55677a;
+  }
+
+  @media print {
+    header { background: #fff; color: var(--ink); border-bottom: 3px solid var(--navy); }
+    .subtitle, .doc-label { color: #444; }
+    pre.term { background: #f2f4f6; color: #1c2733; border: 1px solid var(--line); }
+    pre.term .cmd { color: #0e7490; }
+    pre.term .cmt { color: #667; }
+    .step { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="doc-label">RUNBOOK / OFFLINE INSTALL</div>
+    <h1>RHEL8 オフライン環境への xrdp + GNOME 導入手順書</h1>
+    <p class="subtitle">インターネット接続可能な作業用マシンでパッケージを収集し、閉域のターゲットマシンへ持ち込んでインストールする</p>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <table class="env">
+    <tr>
+      <th>作業用マシン</th>
+      <td>Azure 上の RHEL8(RHUI 構成 / subscription-manager 登録不要)。root で作業。<br>
+      作業ディレクトリ: <code>/mnt/offline-rpms</code>(容量不足のため /root から移動済み)</td>
+    </tr>
+    <tr>
+      <th>ターゲットマシン</th>
+      <td>閉域環境の RHEL8(ネット接続なし)。配置先: <code>/opt/offline-rpms</code></td>
+    </tr>
+    <tr>
+      <th>前提条件</th>
+      <td>両マシンの RHEL8 マイナーバージョンが一致していること(例: 両方 8.10)</td>
+    </tr>
+    <tr>
+      <th>導入対象</th>
+      <td>GNOME デスクトップ一式(Server with GUI 相当)+ xrdp / xorgxrdp / tigervnc-server</td>
+    </tr>
+  </table>
+
+  <div class="notice">
+    <h2>作業前の必読事項(全工程共通ルール)</h2>
+    <ol>
+      <li><strong>コマンドは手打ちせず、必ずコピー&amp;ペースト</strong>で実行する(過去に <code class="inline">dowload</code> / <code class="inline">df</code> 等のタイプミスで障害発生)。</li>
+      <li>各コマンドの直後に <code class="inline">echo $?</code> を実行し、<strong>0 なら成功・0 以外なら失敗</strong>。0 以外なら画面出力を保存してから対処する(<code class="inline">130</code> は Ctrl+C 中断 = 引用符崩れ等でコマンドが未完のまま貼られた疑い)。</li>
+      <li>各 STEP の確認が <strong>OK になるまで次へ進まない</strong>。</li>
+      <li><strong>【重要】<code class="inline">/mnt</code> は Azure の一時ディスク。</strong>VM を停止(割り当て解除)すると中身が消え、<strong>不足パッケージの追加や modules.yaml 注入などの修正がすべて巻き戻る</strong>(実際に repoclosure の解決済みエラーが復活した)。repoclosure 合格から STEP 6(tar 化)までを<strong>必ず 1 セッションで完了</strong>させ、tar.gz は <code class="inline">/root/</code> に出力する。やむを得ず中断する場合は、中間状態でも一度 tar を /root/ に作って退避しておく(再開時は /mnt へ展開して続きから)。</li>
+      <li>倉庫(リポジトリ)の中身を変更したら、必ず<strong>5点セット</strong>で回す:<br>
+      ① <code class="inline">dnf download</code>(追加取得)→ ② <code class="inline">createrepo_c .</code>(倉庫ディレクトリで目録更新)→ ③ <code class="inline">modifyrepo_c --mdtype=modules modules.yaml repodata/</code>(モジュール目録の再注入)→ ④ <code class="inline">dnf clean all</code>(古いキャッシュ破棄)→ ⑤ <code class="inline">dnf repoclosure</code> + <code class="inline">echo $?</code>(再判定)。<br>
+      <strong>createrepo_c は repodata を作り直すため、②を実行するたびに③のモジュール注入が必須</strong>(③を忘れるとターゲットで「No available modular metadata for modular package」が再発する)。②〜④を飛ばすと同じエラーが再現する。</li>
+      <li>全コマンドは <strong>root で実行</strong>する。プロンプト末尾が <code class="inline">#</code> なら root、<code class="inline">$</code> なら一般ユーザー(その場合 <code class="inline">sudo -i</code> で root になる)。一般ユーザーで dnf を実行すると、RHUI のクライアント証明書が読めず <code class="inline">Curl error (58) ... Permission denied</code> が発生する。</li>
+    </ol>
+  </div>
+
+  <h2 style="font-size:17px; margin-top:32px;">全体の流れ</h2>
+  <pre class="flow">【作業用マシン(Azure / ネット接続可)】
+  STEP 1  前提確認
+  STEP 2  リポジトリ準備(BaseOS / AppStream は RHUI 名、EPEL)
+  STEP 3  GNOME のパッケージ一覧を作成(/mnt/offline-rpms)
+  STEP 4  RPM を一括ダウンロード
+  STEP 5  倉庫化 → モジュール目録の注入 → 依存検証(repoclosure 不足ゼロまで)
+  STEP 6  tar 化(出力は /root/)→ チェックサム取得
+       │
+       ▼ 手元 PC 経由で USB 等により閉域環境へ運搬
+【ターゲットマシン(閉域 / ネット不可)】
+  STEP 7  展開(/opt/)とローカルリポジトリ登録
+  STEP 8  インストール(GNOME 一式 → xrdp)
+  STEP 9  起動設定・ファイアウォール・接続確認</pre>
+
+  <!-- ================= PHASE 1 ================= -->
+  <div class="phase">
+    <h2>PHASE 1 — 作業用マシン(Azure・ネット接続可)</h2>
+    <div class="phase-note">全コマンド root で実行(一般ユーザーの場合は先に <code class="inline">sudo -i</code>)</div>
+  </div>
+
+  <!-- STEP 1 -->
+  <div class="step">
+    <div class="step-head"><span class="step-num">STEP 1</span><h3>前提確認</h3></div>
+    <div class="step-body">
+<pre class="term"><span class="cmd">cat /etc/redhat-release</span>
+<span class="cmd">whoami</span></pre>
+      <div class="check">
+        <div class="check-title">確認</div>
+        <div class="check-row"><div class="badge ok">正常</div><div class="desc"><p><code class="inline">Red Hat Enterprise Linux release 8.x (Ootpa)</code> が表示され、バージョンが<strong>ターゲット側と一致</strong>する。<code class="inline">whoami</code> が <code class="inline">root</code>。</p></div></div>
+        <div class="check-row"><div class="badge ng">異常</div><div class="desc"><p>バージョン不一致 → 作業中止。作業用マシンをターゲットに合わせてから再開する。</p></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="step">
+    <div class="step-head"><span class="step-num">STEP 2</span><h3>リポジトリ準備</h3></div>
+    <div class="step-body">
+      <p>作業用ツールを導入する。</p>
+<pre class="term"><span class="cmd">dnf install -y dnf-plugins-core createrepo_c</span>
+<span class="cmd">echo $?</span>
+<span class="cmd">which createrepo_c</span></pre>
+      <div class="check">
+        <div class="check-title">確認</div>
+        <div class="check-row"><div class="badge ok">正常</div><div class="desc"><p><code class="inline">Complete!</code>(導入済みなら <code class="inline">Nothing to do.</code>)、<code class="inline">$?</code> が 0、<code class="inline">/usr/bin/createrepo_c</code> が表示される。</p></div></div>
+      </div>
+
+      <p>倉庫の一覧を確認する。</p>
+<pre class="term"><span class="cmd">dnf repolist</span></pre>
+      <div class="check">
+        <div class="check-title">確認 — 次の 3 種類が揃っていること</div>
+        <div class="check-row"><div class="badge ok">正常</div><div class="desc">
+          <p>・<code class="inline">rhel-8-for-x86_64-baseos-rhui-rpms</code>(baseos + rhui を含む名前)</p>
+          <p>・<code class="inline">rhel-8-for-x86_64-appstream-rhui-rpms</code>(appstream + rhui を含む名前)</p>
+          <p>・<code class="inline">epel</code></p>
+          <p>※ RHUI(クラウド提供リポジトリ)構成のため <strong>subscription-manager での登録・有効化は不要</strong>。リポジトリ名の細部はイメージにより異なるが、baseos / appstream の文字が入った有効な倉庫が 1 つずつあればよい。</p>
+        </div></div>
+        <div class="check-row"><div class="badge ng">異常</div><div class="desc"><p><code class="inline">epel</code> が無い場合のみ以下を実行し、再度 <code class="inline">dnf repolist</code> で確認する。</p>
+<pre class="term"><span class="cmd">dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm</span></pre>
+        <p>このコマンド自体が通信エラーになる場合は、プロキシ/FW で dl.fedoraproject.org が遮断されている。ネットワーク管理者に確認する。</p></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="step">
+    <div class="step-head"><span class="step-num">STEP 3</span><h3>GNOME のパッケージ一覧を作成</h3></div>
+    <div class="step-body">
+      <p>作業フォルダを作成して移動する。<strong>STEP 3〜6 はすべてこの場所で実行</strong>する。</p>
+<pre class="term"><span class="cmd">mkdir -p /mnt/offline-rpms</span>
+<span class="cmd">cd /mnt/offline-rpms</span>
+<span class="cmd">pwd</span></pre>
+      <div class="check">
+        <div class="check-title">確認</div>
+        <div class="check-row"><div class="badge ok">正常</div><div class="desc"><p><code class="inline">pwd</code> の結果が <code class="inline">/mnt/offline-rpms</code> と 1 文字違わず一致する。</p></div></div>
+      </div>
+      <div class="warn-box"><strong>再掲:</strong> /mnt は一時ディスク。VM 停止で消えるため、本日中に STEP 6 まで完了させること。</div>
+
+      <p><strong>3-1. 環境グループ → グループ一覧</strong>(「Server with GUI」はグループの束=環境グループのため 2 段階で展開する)</p>
+<pre class="term"><span class="cmd">LANG=C dnf group info "Server with GUI" &gt; env-info.txt</span>
+<span class="cmd">echo $?</span>
+<span class="cmd">awk '/Groups:/{sec=$0} /^   /{if (sec ~ /Mandatory/) {sub(/^ +/,""); print}}' env-info.txt &gt; group-list.txt</span>
+<span class="cmd">echo $?</span>
+<span class="cmd">cat group-list.txt</span></pre>
+      <div class="check">
+        <div class="check-title">確認</div>
+        <div class="check-row"><div class="badge ok">正常</div><div class="desc"><p><code class="inline">Core</code> / <code class="inline">base-x</code> / <code class="inline">GNOME</code> 等のグループ名が 1 行ずつ、5〜15 行程度並ぶ。</p></div></div>
+        <div class="check-row"><div class="badge ng">異常</div><div class="desc">
+          <p><code class="inline">$?</code> が <strong>130</strong> → Ctrl+C 中断。貼り付け時に awk の引用符 <code class="inline">'</code> が欠落・文字化けし、継続プロンプト <code class="inline">&gt;</code> で入力待ちになった状態。行頭と行末に <code class="inline">'</code> が計 2 つあることを目視してから貼り直す。改善しない場合はコマンドをファイル(.sh)に保存して <code class="inline">bash ファイル名</code> で実行する。</p>
+          <p>0 行 → env-info.txt が英語出力か確認(<code class="inline">grep Mandatory env-info.txt</code>)。出なければ 1 本目の <code class="inline">LANG=C</code> の付け忘れ。</p>
+        </div></div>
+      </div>
+
+      <p><strong>3-2. 各グループ → パッケージ一覧</strong></p>
+<pre class="term"><span class="cmd">while IFS= read -r g; do LANG=C dnf group info "$g"; done &lt; group-list.txt &gt; group-info.txt</span>
+<span class="cmd">echo $?</span>
+<span class="cmd">awk '/Packages:/{sec=$0} /^   /{if (sec !~ /Optional/) {sub(/^ +/,""); print}}' group-info.txt | sort -u &gt; package-list.txt</span>
+<span class="cmd">echo $?</span>
+<span class="cmd">wc -l package-list.txt</span>
+<span class="cmd">head -20 package-list.txt</span>
+<span class="cmd">grep -E '[^a-zA-Z0-9._+-]' package-list.txt</span>   <span class="cmt"># 壊れ検知(何も出ないのが正常)</span></pre>
+      <div class="check">
+        <div class="check-title">確認</div>
+        <div class="check-row"><div class="badge ok">正常</div><div class="desc"><p>行数が <strong>300 前後</strong>(250〜450 許容)。head の表示が英数字のパッケージ名のみ。grep(壊れ検知)が<strong>何も表示しない</strong>。</p></div></div>
+        <div class="check-row"><div class="badge ng">異常</div><div class="desc"><p>行数が数十以下 → 3-2 の 1 本目からやり直し。grep で行が出た → その行は混入物なので <code class="inline">vi package-list.txt</code> で削除する。</p></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="step">
+    <div class="step-head"><span class="step-num">STEP 4</span><h3>RPM を一括ダウンロード</h3></div>
+    <div class="step-body">
+      <p>現在地と空き容量を確認してから開始する(過去にディスク満杯で <code class="inline">Curl error (23): Failed writing received data to disk</code> が発生)。</p>
+<pre class="term"><span class="cmd">pwd</span>          <span class="cmt"># /mnt/offline-rpms であること</span>
+<span class="cmd">df -h /mnt</span>   <span class="cmt"># 空きが 5GB 以上あること</span></pre>
+
+      <p><strong>4-1. GNOME 一式</strong>(数十分かかる)</p>
+<pre class="term"><span class="cmd">dnf download --resolve --alldeps $(cat package-list.txt) --downloaddir=/mnt/offline-rpms</span>
+<span class="cmd">echo $?</span>
+<span class="cmd">ls /mnt/offline-rpms/*.rpm | wc -l</span></pre>
+      <div class="check">
+        <div class="check-title">確認</div>
+        <div class="check-row"><div class="badge ok">正常</div><div class="desc"><p><code class="inline">$?</code> が 0。RPM 個数が<strong>数百〜1000 前後</strong>。</p></div></div>
+        <div class="check-row"><div class="badge ng">異常</div><div class="desc">
+          <p><code class="inline">No package ○○ available</code> + <code class="inline">exiting due to strict setting</code> → ○○ を <code class="inline">grep "○○" package-list.txt</code> で確認し、一覧から削除して再実行(RHUI 環境では提供されない管理系パッケージが混ざることがある。削除した名前は控えておく。最終判定は STEP 5 の repoclosure が行う)。</p>
+          <p><code class="inline">Curl error (23) / Failed writing ... to disk</code> → ディスク満杯。<code class="inline">dnf clean packages</code> で掃除し、<code class="inline">df -h</code> で空きを確認して<strong>同じコマンドを再実行</strong>(取得済み分はスキップされ続きから進む)。</p>
+          <p>通信系エラー(Cannot download 等)→ 同じコマンドをそのまま再実行。</p>
+        </div></div>
+      </div>
+
+      <p><strong>4-2. xrdp 関連</strong>(EPEL から取得)</p>
+<pre class="term"><span class="cmd">dnf download --resolve --alldeps xrdp xorgxrdp tigervnc-server --downloaddir=/mnt/offline-rpms</span>
+<span class="cmd">echo $?</span>
+<span class="cmd">ls /mnt/offline-rpms/ | grep -E '^(xrdp|xorgxrdp|tigervnc-server)-'</span></pre>
+      <div class="check">
+        <div class="check-title">確認</div>
+        <div class="check-row"><div class="badge ok">正常</div><div class="desc"><p>3 種類の RPM ファイル名がすべて表示される。</p></div></div>
+        <div class="check-row"><div class="badge ng">異常</div><div class="desc"><p><code class="inline">No package xrdp available</code> → EPEL が無効。STEP 2 の <code class="inline">dnf repolist</code> 確認へ戻る。</p></div></div>
+      </div>
+
+      <p><strong>4-3. 既知の不足の先回り適用</strong> — 過去の repoclosure 検証で判明した不足・残骸への対処。/mnt 消失後のやり直し時も、このステップを実施すれば同じエラーの再発を防げる。</p>
+<pre class="term"><span class="cmt"># (1) 既知の不足パッケージ(条件付き依存 4 件 + grub2 は BIOS/UEFI 両対応)を一括取得</span>
+<span class="cmd">dnf download --resolve --alldeps flatpak-selinux tigervnc-selinux grub2-pc grub2-efi-x64 selinux-policy-targeted --downloaddir=/mnt/offline-rpms</span>
+<span class="cmd">echo $?</span>
+
+<span class="cmt"># (2) 古い残骸 alsa-ucm-1.1.6 の削除(要求先 alsa-lib=1.1.6 がリポジトリに存在せず解決不能)</span>
+<span class="cmd">rm -f /mnt/offline-rpms/alsa-ucm-1.1.6*.rpm</span>
+<span class="cmd">ls /mnt/offline-rpms/ | grep alsa</span>   <span class="cmt"># 1.1.6 が消えていることを確認</span>
+
+<span class="cmt"># (3) 再発防止: 一覧からも alsa-ucm を除去(次回ダウンロード時から入らなくなる)</span>
+<span class="cmd">sed -i '/^alsa-ucm$/d' package-list.txt</span>
+<span class="cmd">grep alsa-ucm package-list.txt</span>       <span class="cmt"># 何も表示されないのが正常</span></pre>
+      <div class="check">
+        <div class="check-title">確認</div>
+        <div class="check-row"><div class="badge ok">正常</div><div class="desc"><p>(1) の <code class="inline">$?</code> が 0。(2) の grep で alsa-ucm-1.1.6 が表示されない。(3) の grep が何も表示しない。</p></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 5 -->
+  <div class="step">
+    <div class="step-head"><span class="step-num">STEP 5</span><h3>倉庫化・モジュール目録の注入・依存検証(最重要チェックポイント)</h3></div>
+    <div class="step-body">
+      <p><strong>5-1. 倉庫化</strong> — フォルダを dnf が扱える倉庫に変換(目録 repodata を生成)する。</p>
+<pre class="term"><span class="cmd">cd /mnt/offline-rpms</span>
+<span class="cmd">createrepo_c .</span>
+<span class="cmd">echo $?</span>
+<span class="cmd">ls /mnt/offline-rpms/repodata/repomd.xml</span></pre>
+
+      <p><strong>5-2. モジュール目録(modules.yaml)の注入</strong> — RHEL8 の AppStream は一部パッケージ(perl / python 系など)を「モジュール」機構で配布しており、createrepo_c が生成する通常目録には<strong>モジュール情報が含まれない</strong>。この注入を省くと、ターゲットでのインストール時に <code class="inline">Error: No available modular metadata for modular package</code> が発生する(実際に発生済み)。</p>
+      <p>元の AppStream 倉庫からモジュール目録を取り出し、ローカル倉庫の目録に登録する:</p>
+<pre class="term"><span class="cmt"># (1) 元倉庫のモジュール目録を dnf キャッシュに取得(root で実行すること)</span>
+<span class="cmd">dnf clean all</span>
+<span class="cmd">dnf makecache</span>
+<span class="cmd">echo $?</span>
+<span class="cmd">ls /var/cache/dnf/*appstream*/repodata/*modules*</span>
+
+<span class="cmt"># (2) ローカル倉庫へコピーして展開</span>
+<span class="cmd">cp /var/cache/dnf/*appstream*/repodata/*modules.yaml.gz /mnt/offline-rpms/modules.yaml.gz</span>
+<span class="cmd">cd /mnt/offline-rpms</span>
+<span class="cmd">gunzip -f modules.yaml.gz</span>
+<span class="cmd">ls -l modules.yaml</span>
+
+<span class="cmt"># (3) 目録にモジュール情報を注入</span>
+<span class="cmd">modifyrepo_c --mdtype=modules modules.yaml repodata/</span>
+<span class="cmd">echo $?</span>
+<span class="cmd">ls repodata/ | grep modules</span></pre>
+      <div class="check">
+        <div class="check-title">確認</div>
+        <div class="check-row"><div class="badge ok">正常</div><div class="desc"><p>(1) で modules ファイルのパスが表示され、(3) の後 <code class="inline">ls repodata/ | grep modules</code> で <code class="inline">○○○-modules.yaml.gz</code> が表示される。</p></div></div>
+        <div class="check-row"><div class="badge ng">異常</div><div class="desc"><p>(1) で <code class="inline">Curl error (58) ... Permission denied</code> → 一般ユーザーで実行している(RHUI 証明書が読めない)。<code class="inline">sudo -i</code> で root になってやり直す。</p><p>(1) で今回不要な倉庫(ansible 等)のエラーが出続ける → <code class="inline">dnf config-manager --set-disabled ansible-2-for-rhel-8-x86_64-rhui-rpms</code> で無効化してよい(必要なのは baseos / appstream / epel のみ)。</p></div></div>
+      </div>
+      <div class="warn-box"><strong>実行順序の罠:</strong> <code class="inline">createrepo_c .</code> を再実行すると repodata が作り直され、<strong>注入済みのモジュール情報が消える</strong>。順序は必ず「createrepo_c → modifyrepo_c」で、modifyrepo_c が常に最後。modules.yaml は /mnt/offline-rpms に置いたままにしておき(tar に含めて運搬しても害はない)、倉庫を更新するたびに再注入する。</div>
+
+      <p><strong>5-3. 依存検証</strong> — 「この倉庫だけで依存関係が完結しているか」を機械検証する。</p>
+<pre class="term"><span class="cmd">dnf clean all</span>
+<span class="cmd">dnf repoclosure --repofrompath=test,/mnt/offline-rpms --repo=test --check=test</span>
+<span class="cmd">echo $?</span></pre>
+      <div class="check">
+        <div class="check-title">確認</div>
+        <div class="check-row"><div class="badge ok">正常</div><div class="desc"><p><strong>何も報告されず <code class="inline">$?</code> が 0</strong>。これが合格判定。STEP 6 へ進む。</p></div></div>
+        <div class="badge" style="display:none"></div>
+        <div class="check-row"><div class="badge ng">異常</div><div class="desc">
+          <p><code class="inline">package ○○ requires △△</code> が表示 → △△ が不足。以下の<strong>5点セット</strong>を不足ゼロになるまで繰り返す(通常 2〜3 周で収束)。</p>
+<pre class="term"><span class="cmd">dnf download --resolve --alldeps △△ --downloaddir=/mnt/offline-rpms</span>
+<span class="cmd">createrepo_c .</span>     <span class="cmt"># /mnt/offline-rpms で実行(忘れると同じエラーが再現)</span>
+<span class="cmd">modifyrepo_c --mdtype=modules modules.yaml repodata/</span>   <span class="cmt"># モジュール目録の再注入(createrepo で消えるため毎回)</span>
+<span class="cmd">dnf clean all</span>      <span class="cmt"># 古いキャッシュ破棄(忘れると同じエラーが再現)</span>
+<span class="cmd">dnf repoclosure --repofrompath=test,/mnt/offline-rpms --repo=test --check=test; echo $?</span></pre>
+          <p><strong>条件付き依存</strong> <code class="inline">(A if B)</code> の表記 → 「B を入れるなら A も必要」の意味。安全のため A も倉庫に追加する。grub2 が要求された場合は BIOS/UEFI 両対応のため <code class="inline">grub2-pc grub2-efi-x64</code> を追加する。<strong>既知の 4 件(flatpak-selinux / tigervnc-selinux / grub2 / alsa)が出た場合は STEP 4-3 の実施漏れ</strong>なので、4-3 を実施してから 5点セットで再検証する。</p>
+          <p><strong>以前解決したエラーが復活した場合</strong> → /mnt(一時ディスク)消失によるやり直しで修正前に巻き戻った疑い。STEP 4-3 と STEP 5-2(modules.yaml も消えている)を再実施する。</p>
+          <p><strong>古いバージョンの残骸</strong>(例: <code class="inline">alsa-ucm-1.1.6 requires alsa-lib = 1.1.6</code> のように、古い版が同版のぴったり指定を要求)→ 要求している<strong>古い側の RPM を削除</strong>し、現行版を取得して揃える。</p>
+<pre class="term"><span class="cmt"># 例: alsa の場合</span>
+<span class="cmd">ls /mnt/offline-rpms/ | grep alsa</span>            <span class="cmt"># 新旧の混在を確認</span>
+<span class="cmd">dnf download --resolve --alldeps alsa-ucm --downloaddir=/mnt/offline-rpms</span>  <span class="cmt"># 現行版が無ければ取得</span>
+<span class="cmd">rm -f /mnt/offline-rpms/alsa-ucm-1.1.6*.rpm</span>  <span class="cmt"># 古い版のみ削除</span>
+<span class="cmt"># その後 createrepo_c → modifyrepo_c → clean all → repoclosure(5点セット)</span></pre>
+        </div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 6 -->
+  <div class="step">
+    <div class="step-head"><span class="step-num">STEP 6</span><h3>tar 化と運搬準備(出力先は /root/)</h3></div>
+    <div class="step-body">
+      <p>tar.gz は<strong>消えない領域 <code class="inline">/root/</code> に出力</strong>する(/mnt に置いたまま VM を停止すると消失する)。</p>
+<pre class="term"><span class="cmd">tar czf /root/offline-rpms.tar.gz -C /mnt offline-rpms</span>
+<span class="cmd">echo $?</span>          <span class="cmt"># tar は成功時に無言(0 が正常)</span>
+<span class="cmd">tar tzf /root/offline-rpms.tar.gz | head -5</span>
+<span class="cmd">ls -lh /root/offline-rpms.tar.gz</span>
+<span class="cmd">cp /mnt/offline-rpms/package-list.txt /root/</span>   <span class="cmt"># 一覧もターゲットで使うため退避</span>
+<span class="cmd">sha256sum /root/offline-rpms.tar.gz</span>             <span class="cmt"># ハッシュ値を控える</span></pre>
+      <div class="check">
+        <div class="check-title">確認</div>
+        <div class="check-row"><div class="badge ok">正常</div><div class="desc"><p>tar tzf の各行が <code class="inline">offline-rpms/</code> で始まる。サイズが <strong>1.5G〜3G 程度</strong>。sha256sum のハッシュ値をメモしておく。</p></div></div>
+        <div class="check-row"><div class="badge ng">異常</div><div class="desc"><p>各行が <code class="inline">mnt/offline-rpms/</code> 等の深い階層で始まる → <code class="inline">-C /mnt</code> が抜けている。tar を作り直す。サイズが数 MB → 中身が空。STEP 4 の個数確認に戻る。</p></div></div>
+      </div>
+      <div class="info-box"><strong>運搬経路:</strong> ① Azure から手元 PC へダウンロード(scp / ストレージ経由)→ ② USB 等で閉域環境のターゲットへ。運搬するのは <code class="inline">offline-rpms.tar.gz</code> と <code class="inline">package-list.txt</code> の 2 ファイル。ターゲットの <code class="inline">/root/</code> に配置する。</div>
+    </div>
+  </div>
+
+  <!-- ================= PHASE 2 ================= -->
+  <div class="phase">
+    <h2>PHASE 2 — ターゲットマシン(閉域・ネット不可)</h2>
+    <div class="phase-note">運搬ファイルは /root/ に配置済みの前提。root で実行</div>
+  </div>
+
+  <!-- STEP 7 -->
+  <div class="step">
+    <div class="step-head"><span class="step-num">STEP 7</span><h3>展開とローカルリポジトリ登録</h3></div>
+    <div class="step-body">
+      <p>運搬ファイルの破損チェック(多段コピーのため必須)。</p>
+<pre class="term"><span class="cmd">ls -lh /root/offline-rpms.tar.gz /root/package-list.txt</span>
+<span class="cmd">sha256sum /root/offline-rpms.tar.gz</span></pre>
+      <div class="check">
+        <div class="check-title">確認</div>
+        <div class="check-row"><div class="badge ok">正常</div><div class="desc"><p>ハッシュ値が作業用マシンで控えた値と<strong>完全一致</strong>する。</p></div></div>
+        <div class="check-row"><div class="badge ng">異常</div><div class="desc"><p>不一致 → 運搬中に破損。コピーからやり直す(展開しても <code class="inline">Unexpected EOF</code> 等で失敗する)。</p></div></div>
+      </div>
+
+      <p>展開する(/opt/offline-rpms が出来上がる)。</p>
+<pre class="term"><span class="cmd">tar xzf /root/offline-rpms.tar.gz -C /opt/</span>
+<span class="cmd">echo $?</span>
+<span class="cmd">ls /opt/offline-rpms/repodata/repomd.xml</span>
+<span class="cmd">ls /opt/offline-rpms/*.rpm | wc -l</span>   <span class="cmt"># 作業用マシンでの個数と一致すること</span>
+<span class="cmd">ls /opt/offline-rpms/repodata/ | grep modules</span>   <span class="cmt"># モジュール目録が来ていること(無いと STEP 8 で modular エラー)</span></pre>
+
+      <p>リポジトリ定義を作成する(5 行まとめてコピペで 1 ファイルができる)。</p>
+<pre class="term"><span class="cmd">tee /etc/yum.repos.d/offline.repo &lt;&lt; 'EOF'
+[offline]
+name=Offline Local Repository
+baseurl=file:///opt/offline-rpms
+enabled=1
+gpgcheck=0
+EOF</span>
+<span class="cmd">cat /etc/yum.repos.d/offline.repo</span></pre>
+      <div class="check">
+        <div class="check-title">確認</div>
+        <div class="check-row"><div class="badge ok">正常</div><div class="desc"><p>5 行が過不足なく表示され、baseurl の <strong>file: の後のスラッシュが 3 本</strong>(<code class="inline">://</code> + 絶対パス先頭の <code class="inline">/</code>)であること。</p></div></div>
+      </div>
+
+      <p>キャッシュ初期化 → 倉庫認識 → インストールのドライラン(疑似実行)。</p>
+<pre class="term"><span class="cmd">dnf clean all</span>
+<span class="cmd">dnf --disablerepo="*" --enablerepo="offline" repolist</span>
+<span class="cmd">dnf --disablerepo="*" --enablerepo="offline" install xrdp --assumeno</span></pre>
+      <div class="check">
+        <div class="check-title">確認</div>
+        <div class="check-row"><div class="badge ok">正常</div><div class="desc"><p>repolist に <code class="inline">offline</code> が表示される(「This system is not registered」警告は無視してよい)。ドライランで依存一覧が表示され「操作が中止されました(Operation aborted)」で終わる → 本番インストールも通る見込み。</p></div></div>
+        <div class="check-row"><div class="badge ng">異常</div><div class="desc"><p>repolist が空 → repo ファイルの baseurl と <code class="inline">ls /opt/</code> の実体パスを突き合わせる。<code class="inline">Failed to download metadata</code> → repodata 欠損。展開確認へ戻る。</p></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 8 -->
+  <div class="step">
+    <div class="step-head"><span class="step-num">STEP 8</span><h3>インストール</h3></div>
+    <div class="step-body">
+      <p>GNOME 一式(グループ定義は倉庫に含まれないため、運搬した一覧を直接指定する)。途中の <code class="inline">Is this ok [y/N]:</code> は <code class="inline">y</code>。</p>
+<pre class="term"><span class="cmd">dnf --disablerepo="*" --enablerepo="offline" install $(cat /root/package-list.txt)</span>
+<span class="cmd">echo $?</span></pre>
+      <p>xrdp 関連。</p>
+<pre class="term"><span class="cmd">dnf --disablerepo="*" --enablerepo="offline" install xrdp xorgxrdp tigervnc-server</span>
+<span class="cmd">echo $?</span>
+<span class="cmd">rpm -q xrdp xorgxrdp tigervnc-server gnome-shell</span></pre>
+      <div class="check">
+        <div class="check-title">確認</div>
+        <div class="check-row"><div class="badge ok">正常</div><div class="desc"><p>両方とも <code class="inline">Complete!</code> で終了し、rpm -q で 4 つすべてバージョン付きで表示される。</p></div></div>
+        <div class="check-row"><div class="badge ng">異常</div><div class="desc"><p><code class="inline">No package ○○ available</code> → 倉庫に不足。作業用マシンで 5点セット(取得→createrepo→modifyrepo→clean→repoclosure)を実施し、tar から再運搬する。<code class="inline">is not installed</code> がある → 該当 install をやり直す。</p><p><code class="inline">Error: No available modular metadata for modular package</code> → 倉庫にモジュール目録が無い。<strong>STEP 5-2 の実施漏れ、または createrepo_c 再実行後の再注入漏れ</strong>。作業用マシンで STEP 5-2 を実施し、tar から再運搬する(再展開前に <code class="inline">rm -rf /opt/offline-rpms</code> で旧倉庫を削除)。応急処置として repo ファイルに <code class="inline">module_hotfixes=1</code> を追記するとエラーは回避できるが、モジュール管理の不整合の火種になるため、恒久対応は modules.yaml 注入とする。</p></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 9 -->
+  <div class="step">
+    <div class="step-head"><span class="step-num">STEP 9</span><h3>起動設定と接続確認</h3></div>
+    <div class="step-body">
+<pre class="term"><span class="cmd">systemctl set-default graphical.target</span>   <span class="cmt"># 起動時に GUI で立ち上げる</span>
+<span class="cmd">systemctl get-default</span>                     <span class="cmt"># graphical.target と出れば OK</span>
+<span class="cmd">systemctl enable --now xrdp</span>               <span class="cmt"># xrdp を起動+自動起動化</span>
+<span class="cmd">systemctl status xrdp</span>                     <span class="cmt"># Active: active (running) を確認</span>
+<span class="cmd">firewall-cmd --permanent --add-port=3389/tcp</span>   <span class="cmt"># RDP ポート開放(success と出る)</span>
+<span class="cmd">firewall-cmd --reload</span>
+<span class="cmd">firewall-cmd --list-ports</span>                 <span class="cmt"># 3389/tcp が含まれること</span>
+<span class="cmd">reboot</span></pre>
+      <p>再起動後の最終確認。</p>
+<pre class="term"><span class="cmd">systemctl status xrdp | grep Active</span>   <span class="cmt"># active (running)</span>
+<span class="cmd">ss -tlnp | grep 3389</span>                  <span class="cmt"># LISTEN 行が表示されること</span></pre>
+      <div class="check">
+        <div class="check-title">確認 — 接続テスト</div>
+        <div class="check-row"><div class="badge ok">正常</div><div class="desc"><p>Windows の「リモートデスクトップ接続」でターゲットの IP アドレスへ接続 → RHEL のユーザー名/パスワードでログイン → GNOME デスクトップが表示されれば<strong>全工程完了</strong>。</p><p>※ <strong>コンソールでログイン中のユーザーとは別のユーザー</strong>で接続すること(同一ユーザーの同時ログインは不具合の原因)。</p></div></div>
+        <div class="check-row"><div class="badge ng">異常</div><div class="desc"><p>接続不可の切り分け順: ① <code class="inline">systemctl status xrdp</code>(起動)→ ② <code class="inline">ss -tlnp | grep 3389</code>(待受)→ ③ <code class="inline">firewall-cmd --list-ports</code>(開放)→ ④ <code class="inline">journalctl -u xrdp --no-pager | tail -20</code>(ログ)。</p></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= TROUBLE ================= -->
+  <div class="phase">
+    <h2>付録 — 既知のトラブルと対処(本作業で実際に発生したもの)</h2>
+  </div>
+
+  <div class="trouble">
+    <h4>1. No such command: dowload / タイプミス系</h4>
+    <p><code class="inline">dnf</code> → <code class="inline">onf</code>/<code class="inline">df</code>、<code class="inline">download</code> → <code class="inline">dowload</code>、<code class="inline">--resolve</code> のハイフン欠落など。<strong>手打ち禁止・コピペ徹底</strong>で防止。実行前に「コマンド名」「ハイフン 2 本ずつ」「$(cat ...) の形」を目視確認する。</p>
+  </div>
+
+  <div class="trouble">
+    <h4>2. echo $? が 130</h4>
+    <p>Ctrl+C による中断。引用符や括弧が閉じないまま貼り付けられ、継続プロンプト <code class="inline">&gt;</code> で入力待ちになった状態を中断した痕跡。コマンドの引用符を確認して貼り直す。<code class="inline">&gt;</code> が出たら「閉じ忘れのサイン」と判断し、Ctrl+C で安全に抜けてよい。</p>
+  </div>
+
+  <div class="trouble">
+    <h4>3. Curl error (23): Failed writing received data to disk</h4>
+    <p>ダウンロードは成功しているが<strong>ディスク満杯</strong>で書き込めない状態。<code class="inline">df -h</code> で確認し、<code class="inline">dnf clean packages</code> で掃除、不足なら空きのある領域(本手順では /mnt)へ作業場所を移す。取得済み分は残っているため、同じコマンドの再実行で続きから進む。</p>
+  </div>
+
+  <div class="trouble">
+    <h4>4. repoclosure のエラーが繰り返し同じ内容で出る</h4>
+    <p>追加取得後の <code class="inline">createrepo_c .</code>(目録更新)または <code class="inline">dnf clean all</code>(キャッシュ破棄)の実施漏れ。repoclosure は RPM ファイルではなく目録を見て判定するため、倉庫の中身を変えたら必ず<strong>4点セット</strong>で回す。</p>
+  </div>
+
+  <div class="trouble">
+    <h4>5. 古いバージョンの残骸による unresolved deps(alsa-ucm 1.1.6 の例)</h4>
+    <p>失敗と再実行を繰り返す過程で古い版の RPM が紛れ込み、「同版のぴったり指定(= 1.1.6)」を要求し続けるケース。<strong>要求している古い側を削除</strong>し、現行版を取得して揃える。dnf のダウンロードは同名ファイルをスキップするため、一度紛れた古い版は手で削除しない限り残り続ける。</p>
+  </div>
+
+  <div class="trouble">
+    <h4>6. No package xrdp available</h4>
+    <p>xrdp は EPEL にしか存在しない。<code class="inline">dnf repolist</code> に epel が無ければ epel-release を導入する。なお <code class="inline">dnf install</code> と <code class="inline">dnf download</code> は同じ倉庫を参照するため、片方が失敗する状態ではもう片方も失敗する(原因は 1 つ)。</p>
+  </div>
+
+  <div class="trouble">
+    <h4>7. Error: No available modular metadata for modular package(ターゲットでのインストール時)</h4>
+    <p>RHEL8 の AppStream は一部パッケージをモジュール機構で配布しており、モジュール所属の RPM を入れるにはモジュール目録(modules.yaml)が必要。createrepo_c はこれを生成しないため、元倉庫からコピーして <code class="inline">modifyrepo_c --mdtype=modules</code> で注入する(STEP 5-2)。<strong>createrepo_c を再実行するたびに注入し直す</strong>こと(repodata が作り直され消えるため)。恒久対応は注入、応急処置は repo ファイルへの <code class="inline">module_hotfixes=1</code> 追記(不整合の火種になるため恒久策にはしない)。</p>
+  </div>
+
+  <div class="trouble">
+    <h4>8. Curl error (58): could not load PEM client certificate / Permission denied(作業用マシン)</h4>
+    <p>RHUI リポジトリの認証に使うクライアント証明書は root しか読めないため、<strong>一般ユーザーで dnf を実行すると発生</strong>する。プロンプト末尾が <code class="inline">$</code> なら一般ユーザー。<code class="inline">sudo -i</code> で root(末尾 <code class="inline">#</code>)になってやり直す。また、作業に不要な倉庫(ansible 等)がエラーを出し続ける場合は <code class="inline">dnf config-manager --set-disabled 倉庫名</code> で無効化してよい。</p>
+  </div>
+
+  <div class="trouble">
+    <h4>9. 解決済みの repoclosure エラーが復活する(/mnt 消失による巻き戻り)</h4>
+    <p>VM 停止(割り当て解除)で /mnt(一時ディスク)が消え、STEP 3〜4 をやり直すと、<strong>過去に適用した修正(不足パッケージの追加・alsa-ucm 残骸の削除・modules.yaml 注入)がすべて失われ、同じエラーが再発</strong>する。判別方法: <code class="inline">ls -l /mnt/offline-rpms/env-info.txt</code> の日時が直近ならやり直し=巻き戻りとみなす。対処: STEP 4-3(既知の不足の先回り適用)と STEP 5-2(modules.yaml 再注入)を再実施し、repoclosure 合格から tar 化(/root/ 出力)までを同一セッションで完了させる。</p>
+  </div>
+
+  <footer>
+    RHEL8 オフライン xrdp + GNOME 導入手順書 — 作業環境: Azure RHEL8(RHUI)/ 作業ディレクトリ /mnt/offline-rpms / 最終更新 2026-07-23(モジュラリティ対応・既知不足の先回り適用 STEP 4-3 を追加)
+  </footer>
+
+</div>
+</body>
+</html>
