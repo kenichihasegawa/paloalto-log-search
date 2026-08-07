@@ -1,0 +1,29 @@
+# ○バックアップ(代表ノード1台。クラスタ停止中なら CIB_file 方式に切り替え)
+pcs config > /root/pcs_config_$(date +%F).bak
+pcs config backup /root/cluster-backup
+cibadmin -Q > /root/cib_$(date +%F).xml
+rpm -qa | egrep 'pacemaker|corosync|pcs|fence|resource-agents' | sort > /root/before-pkgs.txt
+
+# ○クラスタの停止と解体(全ノードそれぞれで実行)
+pcs cluster stop; echo $?
+pcs cluster destroy; echo $?
+ls /etc/corosync/corosync.conf   # 全ノードで No such file になれば解体成功
+
+# ○パッケージのアンインストール(全ノード)
+systemctl disable --now pcsd
+dnf remove -y pcs pacemaker corosync fence-agents-all resource-agents
+rpm -qa | egrep 'pacemaker|corosync|pcs|fence-agents|resource-agents'   # 残りがあれば名前指定で追加remove
+
+# ○残存ファイルの削除(全ノード)
+rm -rf /etc/corosync /etc/pacemaker /var/lib/pacemaker /var/lib/corosync /var/lib/pcsd
+rm -rf /var/log/cluster /var/log/pacemaker /var/log/pcsd
+userdel hacluster; groupdel haclient 2>/dev/null
+firewall-cmd --permanent --remove-service=high-availability; firewall-cmd --reload
+
+# ○最終確認(全ノード・すべて空/無しが正)
+rpm -qa | egrep 'pacemaker|corosync|pcs|fence-agents|resource-agents'
+systemctl list-unit-files | egrep 'pacemaker|corosync|pcsd'
+ps -ef | egrep 'pacemaker|corosync|pcsd' | grep -v grep
+ss -tulpn | egrep ':2224|:3121|:5404|:5405'
+ls -d /etc/corosync /etc/pacemaker /var/lib/pacemaker /var/lib/pcsd 2>&1
+id hacluster
