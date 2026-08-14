@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RHEL7 複製機での隔離クラスタ構築手順書(現行環境に干渉しないクラスタ起動)</title>
+<style>
+  :root {
+    --navy: #12335c;
+    --navy-2: #1d4a7e;
+    --ink: #1c2733;
+    --line: #d7dee6;
+    --panel: #f5f7fa;
+    --accent: #0e7490;
+    --ok-bg: #eefaf3;
+    --ok-line: #9fd7b8;
+    --ok-ink: #0a5c3b;
+    --warn-bg: #fff8e8;
+    --warn-line: #e7c576;
+    --warn-ink: #7a5410;
+    --bad-bg: #fdf0ef;
+    --bad-line: #e3a19c;
+    --bad-ink: #8f2318;
+    --term-bg: #101820;
+    --term-cmd: #8fd8e8;
+    --term-cmt: #7a8a99;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    color: var(--ink);
+    background: #fff;
+    font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic Medium", "Yu Gothic", Meiryo, sans-serif;
+    font-size: 15px;
+    line-height: 1.85;
+  }
+
+  .wrap { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+
+  header {
+    background: var(--navy);
+    color: #fff;
+    padding: 34px 0 30px;
+    border-bottom: 4px solid var(--accent);
+  }
+  .doc-label {
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    color: #9db8d6;
+    margin-bottom: 10px;
+    font-weight: 600;
+  }
+  header h1 { margin: 0 0 10px; font-size: 25px; line-height: 1.5; }
+  .subtitle { margin: 0; color: #c3d4e8; font-size: 14px; }
+
+  h2.sec {
+    margin: 52px 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--navy);
+    font-size: 20px;
+    color: var(--navy);
+  }
+
+  /* 環境表 */
+  table.env { width: 100%; border-collapse: collapse; margin: 28px 0 8px; font-size: 14px; }
+  table.env th, table.env td { border: 1px solid var(--line); padding: 9px 13px; text-align: left; vertical-align: top; }
+  table.env th { background: var(--panel); width: 165px; font-weight: 600; color: var(--navy); white-space: nowrap; }
+  code.inline {
+    font-family: ui-monospace, "SF Mono", Consolas, "Courier New", monospace;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 13px;
+  }
+
+  /* 通知枠 */
+  .notice { background: var(--warn-bg); border: 1px solid var(--warn-line); border-left: 5px solid var(--warn-line); border-radius: 6px; padding: 16px 20px; margin: 26px 0; }
+  .notice h3 { margin: 0 0 8px; font-size: 15.5px; color: var(--warn-ink); }
+  .notice ol { margin: 6px 0 0; padding-left: 22px; }
+  .notice li { margin-bottom: 7px; }
+
+  /* 実障害枠 */
+  .incident { background: var(--bad-bg); border: 1px solid var(--bad-line); border-left: 5px solid var(--bad-ink); border-radius: 6px; padding: 14px 18px; margin: 18px 0; }
+  .incident .inc-label {
+    display: inline-block;
+    background: var(--bad-ink);
+    color: #fff;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 2px 10px;
+    border-radius: 3px;
+    margin-bottom: 8px;
+  }
+  .incident p { margin: 6px 0; }
+  .incident strong { color: var(--bad-ink); }
+
+  /* 確認枠 */
+  .check { background: var(--ok-bg); border: 1px solid var(--ok-line); border-radius: 6px; padding: 11px 16px; margin: 14px 0; }
+  .check .ck-label { font-weight: 700; color: var(--ok-ink); margin-right: 8px; }
+  .check ul { margin: 4px 0 0; padding-left: 20px; }
+  .check li { margin-bottom: 4px; }
+
+  /* STEPカード */
+  .step { border: 1px solid var(--line); border-radius: 8px; padding: 22px 26px 18px; margin: 26px 0; break-inside: avoid; }
+  .step-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+  .step-head h3 { margin: 0; font-size: 18px; color: var(--navy); }
+  .num {
+    background: var(--navy);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 3px 11px;
+    border-radius: 4px;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  .chip { font-size: 12px; font-weight: 700; padding: 2px 11px; border-radius: 999px; white-space: nowrap; }
+  .chip.work { background: #e3edf8; color: #1d4a7e; border: 1px solid #b6cce6; }
+  .chip.target { background: #e7f6ec; color: #0a5c3b; border: 1px solid #a9dcbd; }
+  .chip.rep { background: #f1e9f9; color: #5b2d8e; border: 1px solid #d2bced; }
+
+  /* ターミナル */
+  pre.term {
+    background: var(--term-bg);
+    color: var(--term-cmd);
+    font-family: ui-monospace, "SF Mono", Consolas, "Courier New", monospace;
+    font-size: 13px;
+    border: 1px solid #2a3743;
+    border-radius: 6px;
+    padding: 13px 17px;
+    overflow-x: auto;
+    line-height: 1.75;
+    margin: 12px 0;
+  }
+  pre.term .cmt { color: var(--term-cmt); }
+  pre.term .ph { background: #3d2b14; color: #f2c078; border-radius: 3px; padding: 0 4px; }
+
+  /* 出力例 */
+  pre.out {
+    background: var(--panel);
+    color: #37474f;
+    font-family: ui-monospace, "SF Mono", Consolas, "Courier New", monospace;
+    font-size: 12.5px;
+    border: 1px dashed var(--line);
+    border-radius: 6px;
+    padding: 10px 15px;
+    overflow-x: auto;
+    line-height: 1.7;
+    margin: 10px 0;
+  }
+
+  /* フロー図 */
+  pre.flow {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 15px 20px;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.8;
+    overflow-x: auto;
+    color: var(--ink);
+  }
+
+  /* 目次 */
+  nav.toc { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 18px 24px; margin: 26px 0; font-size: 14px; }
+  nav.toc h3 { margin: 0 0 8px; font-size: 15px; color: var(--navy); }
+  nav.toc ol { margin: 0; padding-left: 22px; columns: 2; column-gap: 40px; }
+  nav.toc li { margin-bottom: 5px; break-inside: avoid; }
+  nav.toc a { color: var(--navy-2); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  nav.toc a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .toc-inc { color: var(--bad-ink); font-size: 12px; font-weight: 700; }
+
+  /* 補足・用語 */
+  .aside { font-size: 13.5px; color: #4a5a68; margin: 10px 0; padding-left: 14px; border-left: 3px solid var(--line); }
+  table.terms { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 14px 0; }
+  table.terms th, table.terms td { border: 1px solid var(--line); padding: 7px 12px; text-align: left; }
+  table.terms th { background: var(--panel); color: var(--navy); white-space: nowrap; }
+
+  footer {
+    margin-top: 56px;
+    padding: 18px 0 40px;
+    border-top: 1px solid var(--line);
+    font-size: 12.5px;
+    color: #55677a;
+  }
+
+  @media (max-width: 640px) {
+    nav.toc ol { columns: 1; }
+    .step { padding: 16px 16px 12px; }
+  }
+
+  @media print {
+    header { background: #fff; color: var(--ink); border-bottom: 3px solid var(--navy); }
+    .subtitle, .doc-label { color: #444; }
+    pre.term { background: #f2f4f6; color: #1c2733; border: 1px solid var(--line); }
+    pre.term .cmt { color: #667; }
+    pre.term .ph { background: #fbe8c8; color: #7a4b00; }
+    .step, .incident, .notice, .check { break-inside: avoid; }
+    nav.toc { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="doc-label">RUNBOOK / CLUSTER-ISOLATION — 04</div>
+    <h1>RHEL7 複製機での隔離クラスタ構築手順書<br>(現行環境に干渉しない「空クラスタ」の起動)</h1>
+    <p class="subtitle">組織の標準手順(クラスタが組まれた状態からのアンインストール)に合わせるため、複製機 1 対でクラスタを起動する。ただし conf・CIB・認証鍵がすべて現行本番環境のコピーであるため、そのまま起動すると本番へ干渉する。本書は「設定は書き換え、鍵は作り直し、CIB は空にして起動する」方針で、現行に一切触れない隔離クラスタを組む。実障害 1 件(corosync activating ハング)の対処を組み込み済み。</p>
+  </div>
+</header>
+
+<div class="wrap">
+  <table class="env">
+    <tr>
+      <th>対象マシン</th>
+      <td>Azure 上の RHEL7 <strong>複製機 1 対(2 ノード)</strong>。現行本番機のクローン。現行機と<strong>同一セグメント</strong>に存在する。root で作業。</td>
+    </tr>
+    <tr>
+      <th>本書のゴール</th>
+      <td>複製機 2 台だけがメンバーの、<strong>リソースを 1 つも持たない「空クラスタ」</strong>が Online になること(C8 の実測確認まで)。アンインストールの前段として組むだけなので、VIP 等のリソース定義は持ち込まない。</td>
+    </tr>
+    <tr>
+      <th>干渉の 3 経路<br>(なぜ危険か)</th>
+      <td>設定が現行の完全コピーであるため、無対策で起動すると:<br>
+      <strong>① 通信層の混線</strong> — nodelist が現行ノードを指したままだと、複製機が現行クラスタへ参加要求を投げる(authkey も同一なので認証でも弾かれない)。<br>
+      <strong>② リソース起動の実害(最重要)</strong> — CIB も現行のコピーのため、クラスタ成立の瞬間に<strong>現行と同じ VIP を上げようとし、同一セグメントでの IP 重複=本番通信障害</strong>に直結する。<br>
+      <strong>③ フェンシング誤爆</strong> — CIB に現行機を指す STONITH 設定が残っていると、条件次第で現行サーバを強制停止しに行く。</td>
+    </tr>
+    <tr>
+      <th>対策の柱</th>
+      <td><strong>設定は書き換え(C3・C4)、鍵は作り直し(C5)、CIB は空にして起動(C6)</strong>。さらに外向き FW ブロック(C2)を「書き換えをミスしても現行に届かない」最後の安全網として先に張る。②③は CIB を空にすることで根絶される。</td>
+    </tr>
+    <tr>
+      <th>前後の手順書</th>
+      <td>前提: RUNBOOK 03 の U0(実態確認)・U1(バックアップ /root/ha-backup/)完了済み。<br>本書完了後: 「次工程への接続」の節を経て、RUNBOOK 03 の U3(パッケージ削除)以降へ。</td>
+    </tr>
+    <tr>
+      <th>実施範囲の凡例</th>
+      <td><span class="chip target">複製機・全ノード</span> 複製 2 ノード両方で実施 /
+          <span class="chip rep">複製機・代表ノードのみ</span> どちらか 1 台でのみ実施</td>
+    </tr>
+  </table>
+
+  <div class="notice">
+    <h3>作業前の必読事項(全工程共通ルール)</h3>
+    <ol>
+      <li><strong>コマンドは手打ちせず、必ずコピー&amp;ペースト</strong>で実行する。IP・クラスタ名など <span class="ph">オレンジ表示</span> の箇所だけ実環境の値に置き換える。</li>
+      <li>各コマンドの直後に <code class="inline">echo $?</code> を実行し、<strong>0 なら成功・0 以外なら失敗</strong>。</li>
+      <li>各 STEP の確認が <strong>OK になるまで次へ進まない</strong>。特に C2(FW)と C6(CIB 空化)は、飛ばすと干渉経路が生きたまま起動することになる。</li>
+      <li>corosync.conf・/etc/hosts の修正は<strong>複製 2 ノードで同一内容</strong>にすること。片系だけ直すと起動ハング(実障害①)の原因になる。</li>
+      <li><span style="color: var(--bad-ink); font-weight:700;">実障害①: corosync が activating のままハングする事象が実際に発生している。</span>activating は「相方または現行を探し続けている」状態であり、放置してよい状態ではない。C7 の赤枠と付録 A-1 を必ず読むこと。</li>
+      <li>クォーラム無効化の工程は<strong>本手順では不要</strong>(理由は付録 A-2)。組織の古い標準手順に「no-quorum-policy=ignore を設定」等があっても機械的に踏襲しないこと。</li>
+    </ol>
+  </div>
+
+  <h2 class="sec">全体の流れ</h2>
+  <pre class="flow">【複製機・全ノード(一部は代表ノードのみ)】
+ STEP C1  前提確認(実 IP と conf 現状の棚卸し)
+ STEP C2  外向き FW ブロックの適用(最後の安全網)
+ STEP C3  corosync.conf の書き換え(4 点)
+ STEP C4  /etc/hosts の整合
+ STEP C5  認証鍵の作り直しと配布
+ STEP C6  CIB を空にする(本手順の核心)
+ STEP C7  起動(2 台とも)                  ★実障害①
+ STEP C8  現行に干渉していないことの実測
+      ↓
+【次工程への接続】 空クラスタの停止 → RUNBOOK 03 の U3 以降(アンインストール)</pre>
+
+  <nav class="toc">
+    <h3>目次</h3>
+    <ol>
+      <li><a href="#c1">C1: 前提確認</a></li>
+      <li><a href="#c2">C2: 外向き FW ブロック</a></li>
+      <li><a href="#c3">C3: corosync.conf 書き換え</a></li>
+      <li><a href="#c4">C4: /etc/hosts の整合</a></li>
+      <li><a href="#c5">C5: 認証鍵の作り直し</a></li>
+      <li><a href="#c6">C6: CIB を空にする</a></li>
+      <li><a href="#c7">C7: 起動</a> <span class="toc-inc">★障害①</span></li>
+      <li><a href="#c8">C8: 非干渉の実測確認</a></li>
+      <li><a href="#next">次工程への接続</a></li>
+      <li><a href="#a1">付録A: 障害対処と補足</a></li>
+      <li><a href="#terms">付録B: 用語の最小まとめ</a></li>
+    </ol>
+  </nav>
+
+  <!-- ================= C1 ================= -->
+  <section class="step" id="c1">
+    <div class="step-head">
+      <span class="num">STEP C1</span>
+      <h3>前提確認(実 IP と conf 現状の棚卸し)</h3>
+      <span class="chip target">複製機・全ノード</span>
+    </div>
+
+<pre class="term">ip -4 a | grep inet</pre>
+<pre class="term">grep -E 'ring0_addr|cluster_name|transport|mcastaddr|mcastport|secauth|crypto' /etc/corosync/corosync.conf</pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li>複製機 2 台の<strong>実 IP を控える</strong>。現行機の IP と重複していないこと(重複しているなら FW 以前の問題なので作業を止めて解消する)。</li>
+        <li>conf の現状値を控える: ring0_addr(現行ノードを指しているはず)、cluster_name、transport が <code class="inline">udpu</code>(ユニキャスト)か <code class="inline">udp</code>(マルチキャスト)か、secauth の on/off。C3 の書き換え内容がこれで決まる。</li>
+        <li>RUNBOOK 03 U1 のバックアップ(<code class="inline">/root/ha-backup/</code>)が取得済みであること。</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ================= C2 ================= -->
+  <section class="step" id="c2">
+    <div class="step-head">
+      <span class="num">STEP C2</span>
+      <h3>外向き FW ブロックの適用(最後の安全網)</h3>
+      <span class="chip target">複製機・全ノード</span>
+    </div>
+
+    <p><strong>説明:</strong> C3 以降の書き換えをミスしても現行に届かないよう、<strong>クラスタ起動前に</strong>「自分から現行宛」の通信を FW で塞ぐ。多層防御の位置づけ: FW(届かない保証)+ conf 書き換え(向かわない保証)+ 空 CIB(実害の根絶)。</p>
+
+    <h4 style="color: var(--navy); margin: 18px 0 6px;">C2-1. ブロック対象 IP の洗い出し</h4>
+    <p>U1 のバックアップが宛先リストの原本になる。洗い出すのは 3 種類: <strong>①現行ノードの実 IP</strong>(ring0_addr)、<strong>②現行 VIP</strong>(CIB 内 IPaddr2 の ip=)、<strong>③td-agent の転送先</strong>(match の host)。</p>
+
+<pre class="term">grep -E 'ring0_addr|mcastaddr|bindnetaddr' /root/ha-backup/corosync/corosync.conf</pre>
+<pre class="term">grep -A3 IPaddr2 /root/ha-backup/cib-dir/cib.xml | grep -i ip</pre>
+<pre class="term">grep -B2 -A5 '&lt;match' /etc/td-agent/td-agent.conf 2&gt;/dev/null | grep -E 'host|port'</pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li>①②③の IP をリスト化したこと。<code class="inline">mcastaddr</code>(239.x.x.x 等)が出た場合はそれもブロック対象に加える。</li>
+        <li>td-agent を削除済みの場合は、バックアップ側 <code class="inline">/root/td-agent-backup/td-agent/td-agent.conf</code> から読む。</li>
+      </ul>
+    </div>
+
+    <h4 style="color: var(--navy); margin: 18px 0 6px;">C2-2. 管理経路の確認(締め出し防止)</h4>
+    <p>外向き DROP は宛先との通信全部(戻り含む)を殺すため、自分の SSH 経路を潰さないか先に確認する。</p>
+
+<pre class="term">echo $SSH_CLIENT</pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li>表示された接続元 IP がブロック予定リストに<strong>含まれていない</strong>こと。現行機を踏み台に接続している場合はセッションが切れるので、先に別経路(Azure シリアルコンソール等)を確保する。</li>
+      </ul>
+    </div>
+
+    <h4 style="color: var(--navy); margin: 18px 0 6px;">C2-3. ブロックの適用</h4>
+
+<pre class="term">firewall-cmd --state</pre>
+
+    <p><strong>running の場合</strong>(direct ルールで OUTPUT に DROP。対象 IP の数だけ繰り返す):</p>
+
+<pre class="term">firewall-cmd --permanent --direct --add-rule ipv4 filter OUTPUT 0 -d <span class="ph">192.168.10.11</span>/32 -j DROP</pre>
+<pre class="term">firewall-cmd --permanent --direct --add-rule ipv4 filter OUTPUT 0 -d <span class="ph">192.168.10.12</span>/32 -j DROP</pre>
+<pre class="term">firewall-cmd --reload</pre>
+<pre class="term">firewall-cmd --direct --get-all-rules</pre>
+
+    <p><strong>not running の場合</strong>(iptables 直接。<strong>再起動で消える</strong>点に注意):</p>
+
+<pre class="term">iptables -I OUTPUT 1 -d <span class="ph">192.168.10.11</span>/32 -j DROP
+iptables -I OUTPUT 1 -d <span class="ph">192.168.10.12</span>/32 -j DROP</pre>
+<pre class="term">iptables -L OUTPUT -n --line-numbers | head</pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li>入れた分のルールが全部表示されること。firewalld 方式は permanent + reload により再起動後も維持される。</li>
+        <li>iptables 方式は揮発するため、<strong>再起動が発生したら再適用</strong>をルール化する(一次防衛は RUNBOOK 03 U2 の disable)。</li>
+      </ul>
+    </div>
+
+    <h4 style="color: var(--navy); margin: 18px 0 6px;">C2-4. 効いていることの実測</h4>
+
+<pre class="term">ping -c 3 -W 2 <span class="ph">現行ノードのIP</span></pre>
+<pre class="term">ping -c 3 <span class="ph">相方の複製ノードのIP</span></pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li>現行宛が <strong>100% packet loss</strong>、相方の複製ノード宛は<strong>通る</strong>こと(絞りすぎていないことの確認)。</li>
+      </ul>
+    </div>
+
+    <p class="aside"><strong>撤去タイミング(先出し):</strong> この FW ルールはアンインストール完了後の RUNBOOK 03 STEP Z で撤去する(--add-rule を --remove-rule に変えて reload)。firewalld の direct ルールは <code class="inline">/etc/firewalld/direct.xml</code> に残り続けるため、放置して RHEL8 化に持ち込むと「特定 IP と通信できない」将来障害の種になる。</p>
+  </section>
+
+  <!-- ================= C3 ================= -->
+  <section class="step" id="c3">
+    <div class="step-head">
+      <span class="num">STEP C3</span>
+      <h3>corosync.conf の書き換え(4 点)</h3>
+      <span class="chip target">複製機・全ノード(同一内容)</span>
+    </div>
+
+<pre class="term">cp -a /etc/corosync/corosync.conf /root/corosync.conf.$(date +%F).bak</pre>
+<pre class="term">vi /etc/corosync/corosync.conf</pre>
+
+    <p><strong>書き換えるのは次の 4 点:</strong></p>
+    <table class="terms">
+      <tr><th>① nodelist の ring0_addr</th><td>現行ノードのアドレス → <strong>複製機 2 台の実 IP</strong> に変更。ホスト名運用なら C4 で hosts 側を直す方法も可だが、干渉防止の観点では IP 直書きが事故りにくい</td></tr>
+      <tr><th>② cluster_name</th><td>現行と<strong>別名</strong>に変更(例: mycluster → mycluster-clone)。同名クラスタが同一セグメントに 2 つある状態を避け、crm_mon での見分けもつく</td></tr>
+      <tr><th>③ マルチキャスト設定<br>(transport が udp の場合のみ)</th><td>mcastaddr または mcastport を現行と<strong>別の値</strong>に変更。マルチキャストは「同じグループ宛に投げる」方式のため、nodelist を直しても同じ mcastaddr/port のままだと現行とパケットが混ざる。<strong>udpu(ユニキャスト)ならこの項目は不要</strong></td></tr>
+      <tr><th>④ quorum セクション</th><td><code class="inline">two_node: 1</code> が<strong>あることを確認</strong>(変更ではなく確認。2 ノード構成の標準設定で、現行のコピーなら入っているはず。無ければ追記)</td></tr>
+    </table>
+
+<pre class="term">grep -E 'ring0_addr|cluster_name|two_node' /etc/corosync/corosync.conf</pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li>ring0_addr に<strong>複製機の実 IP だけ</strong>が出ること(現行 IP が 1 つでも残っていたら NG)。</li>
+        <li>cluster_name が新名称、two_node: 1 が存在すること。</li>
+        <li><strong>2 ノードとも同一内容</strong>にしたこと(片系だけの修正は実障害①の原因になる)。</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ================= C4 ================= -->
+  <section class="step" id="c4">
+    <div class="step-head">
+      <span class="num">STEP C4</span>
+      <h3>/etc/hosts の整合</h3>
+      <span class="chip target">複製機・全ノード</span>
+    </div>
+
+    <p><strong>説明:</strong> ring0_addr や CIB 内のノード名がホスト名運用の場合、その名前が<strong>複製機の IP に解決される</strong>ようにする。</p>
+
+<pre class="term">getent hosts <span class="ph">ノード名1</span> <span class="ph">ノード名2</span></pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li>返る IP が<strong>複製機の実 IP</strong> であること。現行 IP が返るなら /etc/hosts を修正する(2 ノードとも同一内容)。</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ================= C5 ================= -->
+  <section class="step" id="c5">
+    <div class="step-head">
+      <span class="num">STEP C5</span>
+      <h3>認証鍵の作り直しと配布</h3>
+      <span class="chip rep">複製機・代表ノードで生成</span>
+      <span class="chip target">→ 相方へ配布</span>
+    </div>
+
+    <p><strong>説明:</strong> 現行と同じ authkey を持ったままにしない(同一鍵は干渉経路①で「認証でも弾かれない」原因)。secauth: off の環境なら実効性は薄いが、作り直しておいて損はない。代表ノードで:</p>
+
+<pre class="term">corosync-keygen -l; echo $?</pre>
+<pre class="term">scp /etc/corosync/authkey <span class="ph">相方複製ノードのIP</span>:/etc/corosync/authkey</pre>
+<pre class="term">chmod 400 /etc/corosync/authkey</pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li>両ノードで <code class="inline">md5sum /etc/corosync/authkey</code> の値が<strong>一致</strong>すること(=新鍵が両方に配れた)。</li>
+        <li>相方ノードでも <code class="inline">chmod 400 /etc/corosync/authkey</code> を実施したこと。</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ================= C6 ================= -->
+  <section class="step" id="c6">
+    <div class="step-head">
+      <span class="num">STEP C6</span>
+      <h3>CIB を空にする(本手順の核心)</h3>
+      <span class="chip target">複製機・全ノード</span>
+    </div>
+
+    <p><strong>説明:</strong> 干渉経路②(VIP 重複)と③(フェンシング誤爆)の根絶。現行リソース定義を持った CIB をディレクトリごと隔離退避する。Pacemaker は起動時に cib が無ければ<strong>空の設定で新規作成</strong>するため、これで「リソースゼロのクラスタ」が立ち上がる。</p>
+
+<pre class="term">systemctl is-active pacemaker corosync</pre>
+<pre class="term">mv /var/lib/pacemaker/cib /root/cib-quarantine-$(date +%F); echo $?</pre>
+<pre class="term">ls /var/lib/pacemaker/</pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li>mv の前に is-active が<strong>両方 inactive</strong> であること(activating を含め、動いたまま mv しない。activating の場合は付録 A-1 の手順で先に落とす)。</li>
+        <li>mv 後、<code class="inline">/var/lib/pacemaker/</code> に <code class="inline">cib</code> が無いこと。</li>
+        <li>退避先 <code class="inline">/root/cib-quarantine-日付</code> は削除しない(U1 バックアップと並ぶ設定原本の一つ)。</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ================= C7 ================= -->
+  <section class="step" id="c7">
+    <div class="step-head">
+      <span class="num">STEP C7</span>
+      <h3>起動(2 台とも)</h3>
+      <span class="chip target">複製機・全ノード</span>
+    </div>
+
+    <div class="incident">
+      <span class="inc-label">実障害 ①</span>
+      <p><strong>症状:</strong> <code class="inline">systemctl is-active corosync</code> が <strong>activating</strong> のまま遷移しない事象が実際に発生した。activating は「起動処理の途中=corosync がピアを探し続けている」宙ぶらりんの状態。</p>
+      <p><strong>原因は次の 2 パターン:</strong> (a) conf が現行のコピーのまま起動した — <strong>現行ノードへ参加要求を投げ続けている危険な状態</strong>(C2 の FW が入っていれば実害は遮断されている)。(b) C3 修正後だが<strong>相方の複製ノードをまだ起動していない</strong> — two_node 構成の corosync は初回起動時に相方が見えるまで起動完了にならない(wait_for_all の動き)ため、片方だけでは activating で待ち続ける。</p>
+      <p><strong>対策:</strong> (a) は即停止して C2〜C6 の完了状態を点検してからやり直す(停止手順は付録 A-1)。(b) は相方でも start すれば両方 active に遷移する。<strong>本 STEP は必ず「2 台とも起動」で 1 セット</strong>とし、片方だけの状態で判断しない。</p>
+    </div>
+
+    <p>下から順(corosync → pacemaker)に、<strong>2 台とも</strong>起動する:</p>
+
+<pre class="term">systemctl start corosync; echo $?</pre>
+<pre class="term">systemctl is-active corosync</pre>
+<pre class="term">systemctl start pacemaker; echo $?</pre>
+<pre class="term">crm_mon -1</pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li>is-active が <code class="inline">active</code> であること(activating のまま 1〜2 分変わらなければ実障害①。付録 A-1 へ)。</li>
+        <li><code class="inline">crm_mon -1</code> で 2 ノードとも <strong>Online</strong>、クラスタ名が C3 で付けた<strong>新名称</strong>であること。</li>
+        <li><strong>Resources が 0(リソースが 1 つも無い)</strong>こと。何かリソースが見えたら即 <code class="inline">systemctl stop pacemaker corosync</code> で止めて C6 を見直す(古い CIB を読んでいる兆候)。</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ================= C8 ================= -->
+  <section class="step" id="c8">
+    <div class="step-head">
+      <span class="num">STEP C8</span>
+      <h3>現行に干渉していないことの実測</h3>
+      <span class="chip target">複製機・全ノード</span>
+    </div>
+
+    <p><strong>説明:</strong> 組めた「後」に、混線していないことを事実で確認する。3 つの干渉経路それぞれに対応する。</p>
+
+<pre class="term"><span class="cmt"># 経路①: メンバーが複製機 2 台だけであること(現行 IP が見えたら即停止)</span>
+corosync-cmapctl | grep -E 'members.*ip'</pre>
+<pre class="term"><span class="cmt"># 経路②: 現行 VIP を自分が持っていないこと(何も出ないのが正)</span>
+ip a | grep <span class="ph">現行VIPのアドレス</span></pre>
+<pre class="term"><span class="cmt"># FW 網の生存確認: 現行宛が塞がれたままであること(100% loss が正)</span>
+ping -c 2 -W 2 <span class="ph">現行VIPのアドレス</span></pre>
+
+    <div class="check"><span class="ck-label">確認</span>
+      <ul>
+        <li>members に出る IP が<strong>複製機 2 台の IP だけ</strong>であること。</li>
+        <li>ip a に現行 VIP が<strong>出ない</strong>こと(空 CIB なので VIP を持っていないのが正)。</li>
+        <li>現行 VIP 宛 ping が loss であること(C2 の FW が効いたまま)。</li>
+        <li>3 点すべて OK なら、<strong>現行に一切触れない複製機 2 台だけの空クラスタが成立</strong>。本書のゴール達成。</li>
+      </ul>
+    </div>
+  </section>
+
+  <h2 class="sec" id="next">次工程への接続(アンインストールへ)</h2>
+
+  <section class="step">
+    <div class="step-head">
+      <span class="num" style="background: var(--navy-2);">接続</span>
+      <h3>「クラスタが組まれた状態からのアンインストール」への引き継ぎ</h3>
+      <span class="chip target">複製機・全ノード</span>
+    </div>
+    <p><strong>説明:</strong> これで組織標準手順の前提(クラスタが組まれた状態)が満たされた。アンインストールは以下の順で RUNBOOK 03 に合流する:</p>
+    <ol style="margin: 6px 0; padding-left: 22px;">
+      <li><strong>稼働状態の最終記録</strong>(代表ノード): <code class="inline">crm_mon -1 &gt; /root/uninstall-before-status.txt 2&gt;&amp;1</code> — Online 2 台・Resources 0 の状態を証跡化。</li>
+      <li><strong>停止</strong>(全ノード・pacemaker → corosync の順): <code class="inline">systemctl stop pacemaker; systemctl stop corosync; echo $?</code></li>
+      <li><strong>自動起動解除</strong>(全ノード): <code class="inline">systemctl disable pacemaker corosync; echo $?</code></li>
+      <li>以降は <strong>RUNBOOK 03 の U3(パッケージ削除)→ U4(残存物の掃除)→ U5(完了判定)→ STEP Z</strong> をそのまま実施。</li>
+    </ol>
+    <p class="aside"><strong>読み替え 3 点:</strong> ① U4 で消す /etc/corosync には C3 で書き換えた conf と C5 の新鍵が入っているが、原本は U1 バックアップと C3 の .bak に保全済みなので<strong>ためらわず消してよい</strong>。② C6 の退避先 <code class="inline">/root/cib-quarantine-日付</code> は /root 配下のため U4 では消えない — バックアップとして<strong>意図的に残す</strong>(STEP Z の閉域外複製の対象に含める)。③ C2 の FW ルールの撤去は STEP Z で行う(C2-4 末尾の先出し記載のとおり)。</p>
+  </section>
+
+  <h2 class="sec" id="a1">付録A: 障害対処と補足</h2>
+
+  <section class="step">
+    <div class="step-head">
+      <span class="num" style="background: var(--bad-ink);">A-1</span>
+      <h3>corosync が activating のまま遷移しない ★実障害①</h3>
+      <span class="chip target">複製機・全ノード</span>
+    </div>
+    <p><strong>切り分け:</strong></p>
+<pre class="term">systemctl status corosync -l --no-pager</pre>
+<pre class="term">journalctl -u corosync --no-pager -n 50</pre>
+<pre class="term">grep -E 'ring0_addr|cluster_name' /etc/corosync/corosync.conf</pre>
+    <ol style="margin: 6px 0; padding-left: 22px;">
+      <li><strong>ring0_addr に現行 IP が残っている</strong>(C3 未実施/漏れ)→ パターン (a)。現行へ参加要求を投げ続けている状態なので即停止(下記)し、C2〜C6 を点検してからやり直す。</li>
+      <li><strong>conf は正しいが相方が未起動</strong> → パターン (b)。相方ノードで <code class="inline">systemctl start corosync</code> を実行すれば両方 active に遷移する(two_node / wait_for_all の正常動作)。</li>
+      <li>上記以外(bind エラー、conf 構文エラー等)→ journalctl の出力を保存して個別対処。ring0_addr の IP が自ノードの NIC に実在するか(<code class="inline">ip -4 a</code>)を最初に疑う。</li>
+    </ol>
+    <p><strong>activating 状態の停止手順</strong>(stop が効かない場合のエスカレーション込み):</p>
+<pre class="term">systemctl stop corosync; echo $?</pre>
+<pre class="term">systemctl is-active corosync</pre>
+    <p>それでも activating / 残存する場合:</p>
+<pre class="term">systemctl kill corosync</pre>
+<pre class="term">pkill -9 corosync</pre>
+<pre class="term">ps -ef | grep corosync | grep -v grep</pre>
+    <p>ps が空になったことを確認してから、C2〜C6 の点検に戻る。</p>
+  </section>
+
+  <section class="step">
+    <div class="step-head">
+      <span class="num" style="background: var(--navy-2);">A-2</span>
+      <h3>クォーラム無効化の工程が不要な理由</h3>
+    </div>
+    <p>クォーラム(定足数)は「クラスタの過半数が揃っていないと動作しない」安全装置。2 ノード構成では「過半数=2 票中 2 票」となり片系障害で即動作不能になるため、corosync.conf に <code class="inline">two_node: 1</code> を入れて「2 ノード特例(1 票でも動くが、初回は両方揃うまで待つ)」にするのが標準であり、C3-④ で存在確認している。したがって<strong>追加のクォーラム無効化操作は不要</strong>。</p>
+    <p>「クォーラム無効化」が必要になるのは、①1 ノードだけで一時的に動かす縮退運転(本手順は 2 台とも起動するので非該当)、② RHEL6 以前の旧世代手順の名残で <code class="inline">no-quorum-policy=ignore</code> を設定する流儀(現在は two_node が corosync 層で代替するため機械的踏襲は不要)の 2 場面のみ。また、アンインストールを 1 台ずつ時間差で進める場合でも、two_node: 1 があれば残った単独ノードは quorum を維持するので追加操作は不要。</p>
+  </section>
+
+  <section class="step">
+    <div class="step-head">
+      <span class="num" style="background: var(--navy-2);">A-3</span>
+      <h3>C7 / C8 で NG が出た場合の対処早見</h3>
+    </div>
+    <ol style="margin: 6px 0; padding-left: 22px;">
+      <li><strong>crm_mon にリソースが見える</strong> → 古い CIB を読んでいる。即 <code class="inline">systemctl stop pacemaker corosync</code>(全ノード)→ C6 をやり直し(mv 漏れのノードがないか確認)→ C7 再実行。</li>
+      <li><strong>corosync-cmapctl の members に現行 IP が見える</strong> → 経路①が成立してしまっている。即停止(A-1 の停止手順)→ C3 の ring0_addr・③のマルチキャスト設定を再点検。C2 の FW が入っていたか(入っていれば実害は遮断されていた)も記録する。</li>
+      <li><strong>ip a に現行 VIP が出る</strong> → 空 CIB のはずなのに VIP を持った=1 と同根(古い CIB)。即停止して C6 へ。VIP 重複は本番影響のため、現行側の疎通(現行 VIP への到達性)を本番担当に確認依頼する。</li>
+      <li><strong>2 ノードの片方だけ Online にならない</strong> → conf・hosts・authkey の「2 台同一」が崩れていないかを C3/C4/C5 の確認項目で再点検。</li>
+    </ol>
+  </section>
+
+  <h2 class="sec" id="terms">付録B: 用語の最小まとめ</h2>
+  <table class="terms">
+    <tr><th>空クラスタ</th><td>ノードは Online だがリソース定義が 0 のクラスタ。本書のゴール。組織標準の「クラスタが組まれた状態からのアンインストール」の前提を、現行への干渉リスクなしで満たすための方式</td></tr>
+    <tr><th>activating</th><td>systemd 上の「起動処理中」状態。corosync では「ピアを探して待っている」ことを意味し、active(完了)とも inactive(停止)とも異なる。実障害①参照</td></tr>
+    <tr><th>two_node / wait_for_all</th><td>2 ノード構成向けの quorum 特例。1 票でも動作を許す代わり、初回起動時は両ノードが揃うまで待つ。C7 で「2 台とも起動」が必須な理由であり、クォーラム無効化が不要な理由(A-2)</td></tr>
+    <tr><th>udpu / udp(マルチキャスト)</th><td>corosync の通信方式。udpu は nodelist の相手に個別送信、udp は mcastaddr のグループ宛に一斉送信。udp の場合は mcastaddr/port の変更(C3-③)をしないと nodelist を直しても現行と混線する</td></tr>
+    <tr><th>authkey</th><td>corosync のノード間認証鍵。複製機は現行と同一の鍵を持つため「現行クラスタに認証で弾かれない」— C5 で作り直す理由</td></tr>
+    <tr><th>CIB quarantine</th><td>本書での CIB ディレクトリ退避(/root/cib-quarantine-日付)。削除ではなく隔離であり、RHEL8 再構築時の設定原本の一つとして STEP Z まで保全する</td></tr>
+    <tr><th>direct ルール</th><td>firewalld で iptables 相当のルールを直接記述する機能。外向き(OUTPUT)制限は firewalld の通常機能の範囲外のため、RHEL7 ではこれを使うのが定石(C2-3)</td></tr>
+  </table>
+
+  <footer>
+    <div>RHEL7 複製機での隔離クラスタ構築手順書 — 干渉 3 経路(通信混線 / VIP 重複 / フェンシング誤爆)対策と実障害 1 件(corosync activating)の対処組み込み済み</div>
+    <div>関連文書: RUNBOOK 03(Pacemaker / td-agent アンインストール)— 本書完了後に U3 以降へ合流 / RUNBOOK 01・02(RHEL8 化後の再導入)</div>
+  </footer>
+
+</div>
+</body>
+</html>
