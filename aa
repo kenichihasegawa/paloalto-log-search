@@ -1,1 +1,11 @@
-ss
+systemctl status td-agent --no-pager -l
+systemctl cat td-agent --no-pager
+cat /etc/sysconfig/td-agent
+ps -ef | grep td-agent
+ls -l /etc/td-agent/
+grep -n port /etc/td-agent/td-agent_collector_CUSTOMER.conf
+sudo ss -tlnp
+sudo tail -200 /var/log/td-agent/td-agent.log
+sudo journalctl -u td-agent -n 100 --no-pager
+sudo td-agent --dry-run -c /etc/td-agent/td-agent_collector_CUSTOMER.conf
+getenforce
